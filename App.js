@@ -376,9 +376,9 @@ const MemoryCard = ({ card, isFlipped, isMatched, cardSize, onPress, disabled, i
     return () => loop.stop();
   }, [isHinted, isMatched, face, hintAnim]);
 
-  const bg = isMatched ? '#DCF8E0' : '#FFFFFF';
+  const bg = isMatched ? '#E8FAEB' : '#FFFFFF';
   const shadow = isMatched
-    ? { shadowColor: '#2E7D32', shadowOpacity: 0.55, shadowRadius: 8, elevation: 8 }
+    ? { shadowColor: '#8EB990', shadowOpacity: 0.55, shadowRadius: 8, elevation: 8 }
     : { elevation: 3, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4 };
   const hintScale = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] });
   const hintLift = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
@@ -396,7 +396,7 @@ const MemoryCard = ({ card, isFlipped, isMatched, cardSize, onPress, disabled, i
           backgroundColor: bg,
           opacity: fadeAnim,
           borderWidth: isHinted && face === 'back' ? 4 : 3,
-          borderColor: isHinted && face === 'back' ? '#FFD54F' : '#FFFFFF',
+          borderColor: isHinted && face === 'back' ? '#FFE38B' : '#FFFFFF',
           transform: [
             { scaleX: flipAnim },
             { scale: scaleAnim },
@@ -409,7 +409,7 @@ const MemoryCard = ({ card, isFlipped, isMatched, cardSize, onPress, disabled, i
           ? <Icon value={card.value} size={cardSize * 0.65} />
           : (
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: cardSize * 0.55, color: '#6A55C2', fontWeight: '900' }}>?</Text>
+              <Text style={{ fontSize: cardSize * 0.55, color: '#AFA3DE', fontWeight: '900' }}>?</Text>
             </View>
           )
         }
@@ -462,9 +462,9 @@ const DiffCell = ({ emoji, index, isClickable, isFound, isWrong, onTap, cellSize
     ]).start();
   }, [isFound]);
 
-  const bg = isFound ? '#A5D6A7' : isWrong ? '#EF9A9A' : 'white';
+  const bg = isFound ? '#C4E4C5' : isWrong ? '#F4BCBC' : 'white';
   const shadow = isFound
-    ? { shadowColor: '#2E7D32', shadowOpacity: 0.55, shadowRadius: 6, elevation: 6 }
+    ? { shadowColor: '#8EB990', shadowOpacity: 0.55, shadowRadius: 6, elevation: 6 }
     : { elevation: 1 };
 
   return (
@@ -621,13 +621,13 @@ const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue, onExit
             ))}
           </View>
 
-          <Text style={styles.popupLevelText}>Màn {levelNum} / {totalLevels}</Text>
+          <Text style={styles.popupLevelText}>{levelNum}/{totalLevels}</Text>
 
           <AnimatedPressable
             onPress={() => { stopCelebration(); playSound('tap'); onContinue(); }}
             style={{ width: '100%', marginTop: 18 }}
           >
-            <LinearGradient colors={['#FF9A56', '#FF6B35']} style={styles.winButton}>
+            <LinearGradient colors={['#FFC8A4', '#FFAF92']} style={styles.winButton}>
               <Text style={styles.winButtonText}>{continueLabel}</Text>
             </LinearGradient>
           </AnimatedPressable>
@@ -668,25 +668,25 @@ const LevelProgressHeader = ({
 
 // Theme card colours (background tint per theme)
 const THEME_COLORS = {
-  animals:  { bg: '#FFF3E0', accent: '#FF8F00', border: '#FFCC80' },
-  fruits:   { bg: '#F3E5F5', accent: '#8E24AA', border: '#CE93D8' },
-  vehicles: { bg: '#E3F2FD', accent: '#1565C0', border: '#90CAF9' },
+  animals:  { bg: '#FFF7EB', accent: '#FFC375', border: '#FFDDAB' },
+  fruits:   { bg: '#F7EEF8', accent: '#C289D1', border: '#DFB8E5' },
+  vehicles: { bg: '#EDF6FE', accent: '#81ACDD', border: '#B6DCFB' },
 };
 
 // Full-card gradients for the new theme row cards
 const THEME_GRADIENTS = {
-  animals:  ['#FF9A56', '#F7654B'],
-  fruits:   ['#F953C6', '#B91D73'],
-  vehicles: ['#4facfe', '#00c6fb'],
+  animals:  ['#FFC9AF', '#FFAEB6'],
+  fruits:   ['#F6A8E3', '#C9A7EE'],
+  vehicles: ['#ABD9FF', '#8FD5F8'],
 };
 
 // Level visual config
 const LEVEL_CONFIG = {
-  easy: { color: '#43A047', bg: '#F1F8E9', label: '⭐', desc: 'Khởi động nhẹ nhàng' },
-  medium: { color: '#FB8C00', bg: '#FFF8E1', label: '⭐⭐', desc: 'Tăng số lượng và nhịp độ' },
-  hard: { color: '#E53935', bg: '#FFEBEE', label: '⭐⭐⭐', desc: 'Nhiều thẻ và ít sai sót' },
-  expert: { color: '#8E24AA', bg: '#F3E5F5', label: '⭐⭐⭐⭐', desc: 'Mật độ cao, phản xạ nhanh' },
-  master: { color: '#283593', bg: '#E8EAF6', label: '⭐⭐⭐⭐⭐', desc: 'Thử thách tối đa' },
+  easy: { color: '#99CC9C', bg: '#F6FAF0', label: '⭐', desc: 'Khởi động nhẹ nhàng' },
+  medium: { color: '#FDC175', bg: '#FFFAEB', label: '⭐⭐', desc: 'Tăng số lượng và nhịp độ' },
+  hard: { color: '#F19492', bg: '#FFF2F4', label: '⭐⭐⭐', desc: 'Nhiều thẻ và ít sai sót' },
+  expert: { color: '#C289D1', bg: '#F7EEF8', label: '⭐⭐⭐⭐', desc: 'Mật độ cao, phản xạ nhanh' },
+  master: { color: '#8B92C5', bg: '#F0F1F9', label: '⭐⭐⭐⭐⭐', desc: 'Thử thách tối đa' },
 };
 
 const MEMORY_LEVELS = [
@@ -872,19 +872,19 @@ const MemoryGame = ({ playSound, onExit }) => {
   // ── Theme screen ──
   if (screen === 'theme') {
     return (
-      <LinearGradient colors={['#667EEA', '#764BA2']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#CBE4FF', '#DCC7F7']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
+            <Ionicons name="chevron-back" size={24} color="#979FD6" />
           </AnimatedPressable>
-          <Text style={styles.headerTitle}>🃏 Chọn chủ đề</Text>
+          <Text style={[styles.headerTitle, { color: '#536E88', textShadowColor: 'rgba(255,255,255,0.4)', textShadowRadius: 1 }]}>🃏 Chủ đề</Text>
           <View style={{ width: 70 }} />
         </View>
 
         <View style={styles.kidSelectIntroCard}>
-          <Text style={styles.kidSelectIntroTitle}>Chọn chủ đề tìm cặp</Text>
-          <Text style={styles.kidSelectIntroSub}>10 màn đã mở khóa, 5 màn nâng cao mở sau khi cân bằng</Text>
+          <Text style={styles.kidSelectIntroTitle}>🃏 Chọn bộ hình</Text>
+          <Text style={styles.kidSelectIntroSub}>🎯 10 màn mở khóa</Text>
         </View>
 
         <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
@@ -900,7 +900,7 @@ const MemoryGame = ({ playSound, onExit }) => {
                   </View>
                   <View style={styles.kidThemeTextWrap}>
                     <Text style={styles.kidThemeName}>{theme.name}</Text>
-                    <Text style={styles.kidThemeSub}>Chạm để chọn ▶</Text>
+                    <Text style={styles.kidThemeSub}>▶</Text>
                   </View>
                 </LinearGradient>
               </AnimatedPressable>
@@ -931,11 +931,11 @@ const MemoryGame = ({ playSound, onExit }) => {
     const gridW = cols * cardSize + (cols - 1) * gap;
 
     return (
-      <LinearGradient colors={['#FF9A56', '#FF6B35']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#FFC8A4', '#FFAF92']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
+            <Ionicons name="chevron-back" size={24} color="#979FD6" />
           </AnimatedPressable>
           <LevelProgressHeader
             tier={currentLevel.tier}
@@ -943,7 +943,7 @@ const MemoryGame = ({ playSound, onExit }) => {
             totalLevels={releasedLevels.length}
           />
         </View>
-        <Text style={[styles.hintText, { marginBottom: 8 }]}>Lật 2 thẻ giống nhau ✨</Text>
+        <Text style={[styles.hintText, { marginBottom: 8 }]}>👀✨</Text>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 16 }}>
           <View style={{ width: gridW, flexDirection: 'row', flexWrap: 'wrap', gap }}>
             {cards.map((card, i) => {
@@ -984,10 +984,10 @@ const MemoryGame = ({ playSound, onExit }) => {
 // ============================================
 const AnimalCard = ({ animal, isWrong, isCorrect, onPress, disabled }) => {
   const cardColors = isCorrect
-    ? ['#66BB6A', '#43A047']
+    ? ['#ACDAAF', '#99CC9C']
     : isWrong
-      ? ['#EF5350', '#E53935']
-      : ['#FFFFFF', '#F4F8FF'];
+      ? ['#F6A2A0', '#F19492']
+      : ['#FFFFFF', '#F8FAFF'];
 
   return (
     <AnimatedPressable onPress={onPress} disabled={disabled}>
@@ -1144,25 +1144,25 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
       hard: { emoji: '🚀', badge: '4 lựa chọn', rounds: '6 câu', meter: 3 },
     };
     const LEVEL_GRADIENTS = {
-      easy: ['#56CCF2', '#2F80ED'],
-      medium: ['#F2994A', '#F2C94C'],
-      hard: ['#D66D75', '#E29587'],
+      easy: ['#8FDDF6', '#8FBAF5'],
+      medium: ['#F8C89D', '#F6DB89'],
+      hard: ['#E9B0B4', '#ECB9B0'],
     };
 
     return (
-      <LinearGradient colors={['#5F72FF', '#9A5BFF']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#A9B3FF', '#C8A6FF']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
+            <Ionicons name="chevron-back" size={24} color="#979FD6" />
           </AnimatedPressable>
           <Text style={styles.headerTitle}>🐾 Nghe tiếng thú</Text>
           <View style={{ width: 70 }} />
         </View>
 
         <View style={styles.kidSelectIntroCard}>
-          <Text style={styles.kidSelectIntroTitle}>Bấm loa và chọn đúng con vật</Text>
-          <Text style={styles.kidSelectIntroSub}>Bộ âm thanh dịu nhẹ: chim hót và ve sầu, phù hợp cho bé nhỏ.</Text>
+          <Text style={styles.kidSelectIntroTitle}>🔊 Chọn con đúng</Text>
+          <Text style={styles.kidSelectIntroSub}>👂➡️🐾</Text>
         </View>
 
         <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
@@ -1203,11 +1203,11 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
   if (screen === 'play' && roundData && selectedLevel) {
     const levelConfig = levels[selectedLevel];
     return (
-      <LinearGradient colors={['#5F72FF', '#9A5BFF']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#A9B3FF', '#C8A6FF']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('level'); }}>
-            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
+            <Ionicons name="chevron-back" size={24} color="#979FD6" />
           </AnimatedPressable>
           <View style={styles.statPill}>
             <Text style={styles.animalRoundText}>Câu {currentRound}/{levelConfig.roundsToWin}</Text>
@@ -1221,7 +1221,7 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
           </Text>
 
           <AnimatedPressable onPress={playRoundSound} disabled={isPlayingAnimalSound || isCorrectCelebrating}>
-            <LinearGradient colors={['#FFFFFF', '#E8F1FF']} style={styles.soundPlayButton}>
+            <LinearGradient colors={['#FFFFFF', '#F0F6FF']} style={styles.soundPlayButton}>
               <Text style={styles.soundPlayButtonIcon}>{(isPlayingAnimalSound || isRoundPreparing) ? '🔊' : '🔈'}</Text>
             </LinearGradient>
           </AnimatedPressable>
@@ -1307,7 +1307,7 @@ const GardenDraggableItem = React.memo(function GardenDraggableItem({
           opacity: disabled ? 0.65 : 1 }
       ]}>
         <TouchableOpacity activeOpacity={0.9} onPress={handleTap} disabled={disabled || !allowTap}>
-          <LinearGradient colors={isDone ? ['#D9F7DF', '#C8EFD1'] : ['#FFFFFF', '#F4FFF7']} style={styles.gardenDragItem}>
+          <LinearGradient colors={isDone ? ['#E6FAEA', '#DBF4E1'] : ['#FFFFFF', '#F8FFFA']} style={styles.gardenDragItem}>
             <Text style={styles.gardenDragEmoji}>{item.emoji}</Text>
             {isDone && (
               <View style={styles.gardenCheckBadge}>
@@ -1340,7 +1340,7 @@ const GARDEN_TASK_META = {
     id: GARDEN_TASK_TYPE.HARVEST,
     title: 'Thu hoạch',
     prompt: 'Chạm để hái đúng nông sản',
-    actionHint: 'Chạm vào đồ đúng',
+    actionHint: '👉 Đúng món',
     icon: '🧺',
     targetEmojiPool: ['🍎', '🍓', '🍇', '🥕'],
     targetName: 'Nông sản',
@@ -1663,11 +1663,11 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
     const mistakesLeft = Math.max(0, currentLevel.maxMistakes - wrongPicks);
 
     return (
-      <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#CDEFD7', '#C4E6FF']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
+            <Ionicons name="chevron-back" size={24} color="#979FD6" />
           </AnimatedPressable>
           <LevelProgressHeader
             tier={currentLevel.tier}
@@ -1749,7 +1749,7 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
                     activeOpacity={0.86}
                   >
                     <LinearGradient
-                      colors={isWrong ? ['#EF5350', '#E53935'] : item.done ? ['#D9F7DF', '#C8EFD1'] : ['#FFFFFF', '#F4FFF7']}
+                      colors={isWrong ? ['#F6A2A0', '#F19492'] : item.done ? ['#E6FAEA', '#DBF4E1'] : ['#FFFFFF', '#F8FFFA']}
                       style={styles.gardenHarvestItem}
                     >
                       <Text style={styles.gardenHarvestEmoji}>{item.emoji}</Text>
@@ -1928,19 +1928,19 @@ const PuzzleGame = ({ playSound, onExit }) => {
 
   if (screen === 'theme') {
     return (
-      <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#A0D2A6', '#8DC2AF']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
+            <Ionicons name="chevron-back" size={24} color="#979FD6" />
           </AnimatedPressable>
-          <Text style={styles.headerTitle}>🧮 Chọn chủ đề</Text>
+          <Text style={[styles.headerTitle, { color: '#4F6F67', textShadowColor: 'rgba(255,255,255,0.4)', textShadowRadius: 1 }]}>🧮 Chủ đề</Text>
           <View style={{ width: 70 }} />
         </View>
 
         <View style={styles.kidSelectIntroCard}>
-          <Text style={styles.kidSelectIntroTitle}>Đếm hình và chọn số</Text>
-          <Text style={styles.kidSelectIntroSub}>10 màn đã mở khóa, mỗi màn có giới hạn sai để tăng thử thách</Text>
+          <Text style={styles.kidSelectIntroTitle}>🧮 Đếm & chọn số</Text>
+          <Text style={styles.kidSelectIntroSub}>🎯 10 màn mở khóa</Text>
         </View>
 
         <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
@@ -1956,7 +1956,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
                   </View>
                   <View style={styles.kidThemeTextWrap}>
                     <Text style={styles.kidThemeName}>{theme.name}</Text>
-                    <Text style={styles.kidThemeSub}>Chạm để chọn ▶</Text>
+                    <Text style={styles.kidThemeSub}>▶</Text>
                   </View>
                 </LinearGradient>
               </AnimatedPressable>
@@ -1979,11 +1979,11 @@ const PuzzleGame = ({ playSound, onExit }) => {
     const emojiSizeB = computeEmojiSizeForCard(roundData.secondCount, rightCountCardBox);
 
     return (
-      <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#A0D2A6', '#8DC2AF']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
+            <Ionicons name="chevron-back" size={24} color="#979FD6" />
           </AnimatedPressable>
           <LevelProgressHeader
             tier={currentLevel.tier}
@@ -1995,8 +1995,8 @@ const PuzzleGame = ({ playSound, onExit }) => {
         <View style={styles.countPlayContent}>
           <View style={styles.countTopHalf}>
             <View style={styles.countQuestionCard}>
-              <Text style={styles.countQuestionTitle}>Đếm hình và chọn kết quả</Text>
-              <Text style={[styles.countOptionsTitle, { color: '#2E7D32', marginBottom: 10 }]}>
+              <Text style={styles.countQuestionTitle}>🧮 + 🧮 = ?</Text>
+              <Text style={[styles.countOptionsTitle, { color: '#8EB990', marginBottom: 10 }]}>
                 {getTierLabel(currentLevel.tier)} · Sai {wrongPicks}/{currentLevel.mistakeBudget}
               </Text>
               <View style={styles.countEquationWrap}>
@@ -2045,7 +2045,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
 
           <View style={styles.countBottomHalf}>
             <View style={styles.countOptionsWrap}>
-              <Text style={styles.countOptionsTitle}>Chọn đáp án đúng</Text>
+              <Text style={styles.countOptionsTitle}>✅</Text>
               <View style={styles.countOptionGrid}>
                 {roundData.options.map((option) => {
                   const isWrongSelected = selectedWrongOption === option;
@@ -2057,8 +2057,8 @@ const PuzzleGame = ({ playSound, onExit }) => {
                         isHinted && { transform: [{ scale: hintScale }, { translateY: hintLift }] },
                       ]}>
                         <LinearGradient
-                          colors={isWrongSelected ? ['#EF5350', '#E53935'] : ['#FFFFFF', '#F3F7FF']}
-                          style={[styles.countOptionButton, styles.countOptionButtonHalf, isHinted && { borderWidth: 3, borderColor: '#FFD54F' }]}
+                          colors={isWrongSelected ? ['#F6A2A0', '#F19492'] : ['#FFFFFF', '#F7FAFF']}
+                          style={[styles.countOptionButton, styles.countOptionButtonHalf, isHinted && { borderWidth: 3, borderColor: '#FFE38B' }]}
                         >
                           <Text style={[styles.countOptionText, isWrongSelected && { color: '#FFF' }]}>{option}</Text>
                         </LinearGradient>
@@ -2155,7 +2155,7 @@ export default function App() {
 
   if (!audioReady) {
     return (
-      <LinearGradient colors={['#667EEA', '#764BA2']} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <LinearGradient colors={['#ACB9F4', '#B59ECD']} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <StatusBar barStyle="light-content" />
         <Text style={{ fontSize: 72 }}>🎵</Text>
         <Text style={styles.audioLoadingText}>Đang chuẩn bị nhạc nền...</Text>
@@ -2173,7 +2173,7 @@ export default function App() {
         {gameScreen}
         <TouchableOpacity onPress={toggleMusic} style={styles.musicToggleGame} activeOpacity={0.9}>
           <LinearGradient
-            colors={musicEnabled ? ['#F4FFF7', '#D7F6E2'] : ['#FFF3F3', '#F6D7D7']}
+            colors={musicEnabled ? ['#F8FFFA', '#E5F9EC'] : ['#FFF7F7', '#F9E5E5']}
             style={styles.musicToggleButton}
           >
             <Text style={styles.musicToggleIcon}>{musicEnabled ? '🔊' : '🔇'}</Text>
@@ -2188,11 +2188,11 @@ export default function App() {
   const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
 
   return (
-    <LinearGradient colors={['#667EEA', '#764BA2']} style={styles.container}>
+    <LinearGradient colors={['#ACB9F4', '#B59ECD']} style={styles.container}>
       <StatusBar barStyle="light-content" />
       <TouchableOpacity onPress={toggleMusic} style={styles.musicToggleHome} activeOpacity={0.9}>
         <LinearGradient
-          colors={musicEnabled ? ['#F4FFF7', '#D7F6E2'] : ['#FFF3F3', '#F6D7D7']}
+          colors={musicEnabled ? ['#F8FFFA', '#E5F9EC'] : ['#FFF7F7', '#F9E5E5']}
           style={styles.musicToggleButton}
         >
           <Text style={styles.musicToggleIcon}>{musicEnabled ? '🔊' : '🔇'}</Text>
@@ -2210,38 +2210,38 @@ export default function App() {
           🧸
         </Animated.Text>
         <Text style={[styles.title, { fontFamily: F }]}>Bé Học Vui</Text>
-        <Text style={[styles.subtitle, { fontFamily: F7 }]}>Chạm vào trò bé muốn chơi 👇</Text>
+        <Text style={[styles.subtitle, { fontFamily: F7 }]}>🎮👇</Text>
 
         {/* Game buttons */}
         <View style={{ width: '100%', paddingHorizontal: 20, gap: 14, marginTop: 20 }}>
           <AnimatedPressable onPress={() => handleGameSelect('memory')}>
-            <LinearGradient colors={['#FF9A56', '#FF6B35']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+            <LinearGradient colors={['#FFC8A4', '#FFAF92']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
               <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🃏</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gameButtonText, { fontFamily: F }]}>Tìm Cặp</Text>
-                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>Rèn trí nhớ nhanh</Text>
+                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🧠✨</Text>
               </View>
               <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
             </LinearGradient>
           </AnimatedPressable>
 
           <AnimatedPressable onPress={() => handleGameSelect('puzzle')}>
-            <LinearGradient colors={['#56D98A', '#2ECC71']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+            <LinearGradient colors={['#A4EAC0', '#8EE3B2']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
               <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🧮</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gameButtonText, { fontFamily: F }]}>Đếm Hình</Text>
-                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>Nhìn hình, chọn kết quả</Text>
+                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🧮✅</Text>
               </View>
               <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
             </LinearGradient>
           </AnimatedPressable>
 
           <AnimatedPressable onPress={() => handleGameSelect('garden')}>
-            <LinearGradient colors={['#43C97A', '#2BA95E']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+            <LinearGradient colors={['#99E2B7', '#8DD1A8']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
               <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🌾</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gameButtonText, { fontFamily: F }]}>Vườn Thu Hoạch</Text>
-                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>Chạm hoặc kéo thả để chăm vườn</Text>
+                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🌱🧺</Text>
               </View>
               <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
             </LinearGradient>
@@ -2307,7 +2307,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
-    shadowColor: '#2A2A45',
+    shadowColor: '#8C8C9B',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.24,
     shadowRadius: 8,
@@ -2336,9 +2336,9 @@ const styles = StyleSheet.create({
   bigButton: {
     paddingVertical: 16, paddingHorizontal: 32,
     borderRadius: 30, width: '100%', alignItems: 'center',
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#FFAF92',
     elevation: 5,
-    shadowColor: '#C94A1A', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.4, shadowRadius: 6,
+    shadowColor: '#E29D83', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.4, shadowRadius: 6,
   },
   bigButtonText: { color: 'white', fontSize: 20, fontWeight: '900', letterSpacing: 0.4 },
   header: {
@@ -2351,11 +2351,11 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     borderWidth: 2,
-    borderColor: '#D7E3FF',
+    borderColor: '#E5EDFF',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,
-    shadowColor: '#1A2B66',
+    shadowColor: '#838DAC',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.22,
     shadowRadius: 10,
@@ -2365,7 +2365,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.92)', paddingVertical: 8, paddingHorizontal: 14,
     borderRadius: 20, elevation: 3,
   },
-  statPillText: { fontSize: 14, fontWeight: '800', color: '#FF6B35' },
+  statPillText: { fontSize: 14, fontWeight: '800', color: '#FFAF92' },
   levelHeaderCard: {
     minWidth: 220,
     maxWidth: 270,
@@ -2389,7 +2389,7 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECF8EE',
+    backgroundColor: '#F2FAF4',
   },
   levelHeaderTierIcon: {
     fontSize: 20,
@@ -2399,14 +2399,14 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   levelHeaderValueMain: {
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 22,
     lineHeight: 24,
     fontWeight: '900',
   },
   levelHeaderValueSub: {
     marginTop: 1,
-    color: '#53725A',
+    color: '#A2B3A6',
     fontSize: 11,
     fontWeight: '800',
   },
@@ -2415,12 +2415,12 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: '#D5E8D9',
+    backgroundColor: '#E3F0E6',
   },
   levelHeaderBarFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#9ED4A0',
     justifyContent: 'center',
   },
   levelHeaderProgressGlow: {
@@ -2428,7 +2428,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#F7FFF6',
+    backgroundColor: '#FAFFF9',
     marginRight: -1,
   },
   headerTitle: { color: 'white', fontSize: 20, fontWeight: '900',
@@ -2443,17 +2443,17 @@ const styles = StyleSheet.create({
   },
   popupCloseBtn: {
     position: 'absolute', top: 14, right: 14, width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#FFE5E5', justifyContent: 'center', alignItems: 'center', zIndex: 10,
+    backgroundColor: '#FFEEEE', justifyContent: 'center', alignItems: 'center', zIndex: 10,
   },
-  popupCloseBtnText: { fontSize: 16, color: '#E53935', fontWeight: '700' },
+  popupCloseBtnText: { fontSize: 16, color: '#F19492', fontWeight: '700' },
   popupPraiseText: { fontSize: 26, fontWeight: '900', color: '#333', marginTop: 8, textAlign: 'center' },
   popupLevelText: {
     fontSize: 24,
-    color: '#4E5F52',
+    color: '#9FA9A2',
     marginBottom: 4,
     fontWeight: '900',
     letterSpacing: 0.3,
-    backgroundColor: '#F2FFF4',
+    backgroundColor: '#F6FFF8',
     borderRadius: 14,
     paddingVertical: 6,
     paddingHorizontal: 14,
@@ -2466,7 +2466,7 @@ const styles = StyleSheet.create({
     elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2, shadowRadius: 16,
   },
-  winTitle:     { fontSize: 30, fontWeight: '900', color: '#FF6B35', marginTop: 4, textAlign: 'center' },
+  winTitle:     { fontSize: 30, fontWeight: '900', color: '#FFAF92', marginTop: 4, textAlign: 'center' },
   winSubtitle:  { fontSize: 16, color: '#666', textAlign: 'center', fontWeight: '700' },
   winButton: {
     borderRadius: 28,
@@ -2520,21 +2520,26 @@ const styles = StyleSheet.create({
   kidSelectIntroCard: {
     marginHorizontal: 16,
     marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.20)',
+    backgroundColor: 'rgba(255,255,255,0.45)',
     borderRadius: 20,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.30)',
+    borderColor: 'rgba(255,255,255,0.58)',
+    elevation: 4,
+    shadowColor: '#8FA8B7',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 7,
   },
   kidSelectIntroTitle: {
-    color: 'white',
+    color: '#4A5F5D',
     fontSize: 18,
     fontWeight: '900',
   },
   kidSelectIntroSub: {
     marginTop: 4,
-    color: 'rgba(255,255,255,0.9)',
+    color: '#5D6F6D',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -2554,16 +2559,20 @@ const styles = StyleSheet.create({
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
+    shadowOpacity: 0.27,
+    shadowRadius: 11,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.45)',
   },
   kidThemeEmojiWrap: {
     width: 72,
     height: 72,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.24)',
+    backgroundColor: 'rgba(255,255,255,0.36)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
   kidThemeEmoji: {
     fontSize: 44,
@@ -2576,13 +2585,13 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '900',
     lineHeight: 36,
-    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowColor: 'rgba(0,0,0,0.26)',
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowRadius: 5,
   },
   kidThemeSub: {
     marginTop: 3,
-    color: 'rgba(255,255,255,0.93)',
+    color: 'rgba(255,255,255,0.98)',
     fontSize: 14,
     fontWeight: '800',
   },
@@ -2795,22 +2804,22 @@ const styles = StyleSheet.create({
     elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12, shadowRadius: 5,
   },
-  themeName: { fontSize: 22, fontWeight: '700', color: '#2F2F2F' },
+  themeName: { fontSize: 22, fontWeight: '700', color: '#8F8F8F' },
   levelCard: {
     backgroundColor: 'rgba(255,255,255,0.98)', borderRadius: 25, padding: 24,
     width: '100%', maxWidth: 400,
     elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12, shadowRadius: 5,
   },
-  levelCardPurple: { borderLeftWidth: 4, borderLeftColor: '#9060D8' },
-  levelCardGreen:  { borderLeftWidth: 4, borderLeftColor: '#45B25F' },
-  levelName: { fontSize: 26, fontWeight: '800', color: '#FF6B35' },
+  levelCardPurple: { borderLeftWidth: 4, borderLeftColor: '#C3A9EA' },
+  levelCardGreen:  { borderLeftWidth: 4, borderLeftColor: '#9BD5A9' },
+  levelName: { fontSize: 26, fontWeight: '800', color: '#FFAF92' },
   levelDesc: { fontSize: 16, color: '#666', marginTop: 5 },
   movesBox: {
     backgroundColor: 'white', paddingVertical: 8, paddingHorizontal: 20,
     borderRadius: 15, minWidth: 126,
   },
-  movesText: { fontSize: 16, fontWeight: '700', color: '#FF6B35' },
+  movesText: { fontSize: 16, fontWeight: '700', color: '#FFAF92' },
   progressText: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
   gameGrid: {
     flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 14,
@@ -2820,8 +2829,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'white', borderRadius: 20,
     alignItems: 'center', justifyContent: 'center', elevation: 2,
   },
-  cardFlipped: { backgroundColor: '#FFF3E0' },
-  cardMatched: { backgroundColor: '#C8E6C9' },
+  cardFlipped: { backgroundColor: '#FFF7EB' },
+  cardMatched: { backgroundColor: '#DBEEDB' },
   hintText: {
     color: 'white', fontSize: 15, fontWeight: '700', marginBottom: 10, textAlign: 'center',
   },
@@ -2838,10 +2847,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: '#D8F5DE',
+    borderColor: '#E5F8E9',
   },
   gardenMissionTitle: {
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 28,
     fontWeight: '900',
     textAlign: 'center',
@@ -2853,28 +2862,28 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   gardenMissionStatChip: {
-    backgroundColor: '#E8F7EC',
+    backgroundColor: '#F0FAF2',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#B8E1C1',
+    borderColor: '#D0EBD6',
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   gardenMissionStatText: {
-    color: '#2D6D39',
+    color: '#8EB094',
     fontSize: 15,
     fontWeight: '900',
   },
   gardenMissionSub: {
     marginTop: 4,
-    color: '#3E6A43',
+    color: '#97AF99',
     fontSize: 15,
     fontWeight: '800',
     textAlign: 'center',
   },
   gardenMissionHint: {
     marginTop: 6,
-    color: '#4D6650',
+    color: '#9FACA0',
     fontSize: 14,
     fontWeight: '700',
     textAlign: 'center',
@@ -2885,15 +2894,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 260,
     borderRadius: 18,
-    backgroundColor: '#F2FFF4',
+    backgroundColor: '#F6FFF8',
     borderWidth: 2,
-    borderColor: '#BEE8C8',
+    borderColor: '#D4F0DB',
     paddingVertical: 10,
     paddingHorizontal: 10,
     alignItems: 'center',
   },
   gardenTargetPreviewLabel: {
-    color: '#3E6A43',
+    color: '#97AF99',
     fontSize: 14,
     fontWeight: '800',
   },
@@ -2906,7 +2915,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#D6EEDB',
+    borderColor: '#E4F4E7',
   },
   gardenTargetPreviewEmoji: {
     fontSize: 62,
@@ -2914,7 +2923,7 @@ const styles = StyleSheet.create({
   },
   gardenTargetPreviewName: {
     marginTop: 6,
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 20,
     fontWeight: '900',
     textAlign: 'center',
@@ -2922,30 +2931,30 @@ const styles = StyleSheet.create({
   gardenHintBubble: {
     marginTop: 10,
     alignSelf: 'center',
-    backgroundColor: '#FFF6CF',
+    backgroundColor: '#FFF9DF',
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#F2D578',
+    borderColor: '#F6E3A6',
   },
   gardenHintText: {
-    color: '#8E5C00',
+    color: '#C2A775',
     fontSize: 13,
     fontWeight: '800',
   },
   gardenToast: {
     marginTop: 10,
     alignSelf: 'center',
-    backgroundColor: '#D7F7DF',
+    backgroundColor: '#E5FAEA',
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#8CD8A1',
+    borderColor: '#B3E5C1',
   },
   gardenToastText: {
-    color: '#1F7A34',
+    color: '#86B791',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -2958,7 +2967,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: '#76C98A',
+    borderColor: '#B5E2C0',
     minHeight: 182,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2968,13 +2977,13 @@ const styles = StyleSheet.create({
   },
   gardenDropZoneLabel: {
     marginTop: 8,
-    color: '#2F6140',
+    color: '#8FAA98',
     fontSize: 16,
     fontWeight: '900',
   },
   gardenDropZoneCounter: {
     marginTop: 5,
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 22,
     fontWeight: '900',
   },
@@ -3019,7 +3028,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: '#D9F1DE',
+    borderColor: '#E6F6E9',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
@@ -3036,7 +3045,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#8EB990',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3057,7 +3066,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(229,57,53,0.25)',
   },
   gardenWrongMarkText: {
-    color: '#C62828',
+    color: '#E08B8B',
     fontSize: 52,
     fontWeight: '900',
     textShadowColor: 'rgba(255,255,255,0.4)',
@@ -3087,7 +3096,7 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   countQuestionTitle: {
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 24,
     fontWeight: '900',
     textAlign: 'center',
@@ -3102,10 +3111,10 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   countItemCard: {
-    backgroundColor: '#F5FFF7',
+    backgroundColor: '#F8FFFA',
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: '#BEE8C8',
+    borderColor: '#D4F0DB',
     flex: 1,
     minHeight: 0,
     maxHeight: '100%',
@@ -3118,7 +3127,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   countItemNumber: {
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 40,
     fontWeight: '900',
     lineHeight: 44,
@@ -3139,7 +3148,7 @@ const styles = StyleSheet.create({
     lineHeight: 46,
   },
   countMathSign: {
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 42,
     fontWeight: '900',
     alignSelf: 'center',
@@ -3154,7 +3163,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   countResultText: {
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 54,
     fontWeight: '900',
     lineHeight: 58,
@@ -3200,7 +3209,7 @@ const styles = StyleSheet.create({
     minWidth: 110,
   },
   countOptionText: {
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 40,
     fontWeight: '900',
     lineHeight: 44,
@@ -3244,7 +3253,7 @@ const styles = StyleSheet.create({
     fontSize: 56,
   },
   animalRoundText: {
-    color: '#5A3CA8',
+    color: '#A696D0',
     fontSize: 16,
     fontWeight: '900',
   },
@@ -3272,13 +3281,13 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 98,
     borderRadius: 12,
-    backgroundColor: '#E8EEF8',
+    backgroundColor: '#F0F4FA',
   },
   animalEmojiHeroWrap: {
     width: '100%',
     height: 98,
     borderRadius: 12,
-    backgroundColor: '#EEF3FF',
+    backgroundColor: '#F4F7FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3286,7 +3295,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 98,
     borderRadius: 12,
-    backgroundColor: '#EEF3FF',
+    backgroundColor: '#F4F7FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3295,7 +3304,7 @@ const styles = StyleSheet.create({
   },
   animalOptionName: {
     marginTop: 8,
-    color: '#2C3A57',
+    color: '#8D95A4',
     fontSize: 24,
     fontWeight: '900',
     textAlign: 'center',
@@ -3310,14 +3319,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 230,
     borderWidth: 2,
-    borderColor: '#FFE082',
+    borderColor: '#FFEBAC',
   },
   correctToastIcon: {
     fontSize: 28,
   },
   correctToastText: {
     marginTop: 2,
-    color: '#2E7D32',
+    color: '#8EB990',
     fontSize: 18,
     fontWeight: '900',
     textAlign: 'center',
@@ -3326,8 +3335,8 @@ const styles = StyleSheet.create({
     width: '100%', maxWidth: 500, backgroundColor: 'rgba(255,255,255,0.96)',
     borderRadius: 18, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 12,
   },
-  puzzleGuideTitle: { fontSize: 16, fontWeight: '800', color: '#FF6B35', textAlign: 'center' },
-  puzzleGuideDesc:  { marginTop: 4, fontSize: 13, color: '#5f6368', textAlign: 'center', lineHeight: 18 },
+  puzzleGuideTitle: { fontSize: 16, fontWeight: '800', color: '#FFAF92', textAlign: 'center' },
+  puzzleGuideDesc:  { marginTop: 4, fontSize: 13, color: '#A9ABAD', textAlign: 'center', lineHeight: 18 },
   puzzlePlayContent: { width: '100%', alignItems: 'center', paddingBottom: 14, flex: 1 },
   puzzleBoardShell:  { width: '100%', alignItems: 'center' },
   puzzleBoard: {
@@ -3337,25 +3346,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12, shadowRadius: 5, elevation: 4,
   },
   puzzleSlot: {
-    borderWidth: 2, borderStyle: 'dashed', borderColor: '#7DC87D',
+    borderWidth: 2, borderStyle: 'dashed', borderColor: '#B9E1B9',
     borderRadius: 8, alignItems: 'center', justifyContent: 'center',
   },
   puzzlePlacedPiece: {
-    backgroundColor: '#DDF6DF', borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#E9F9EA', borderRadius: 8, alignItems: 'center', justifyContent: 'center',
   },
-  puzzleSlotHintText: { color: '#B6B6B6', fontSize: 12, fontWeight: '700' },
+  puzzleSlotHintText: { color: '#CFCFCF', fontSize: 12, fontWeight: '700' },
   puzzleTray: {
     width: '100%', maxWidth: 500, backgroundColor: 'rgba(255,255,255,0.93)',
     borderRadius: 20, paddingVertical: 12, paddingHorizontal: 10, marginBottom: 12,
   },
-  puzzleTrayTitle: { textAlign: 'center', color: '#5A6470', fontSize: 13, fontWeight: '700', marginBottom: 8 },
+  puzzleTrayTitle: { textAlign: 'center', color: '#A6ABB2', fontSize: 13, fontWeight: '700', marginBottom: 8 },
   puzzleTrayGrid: {
     flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, minHeight: 70,
   },
-  puzzleMeasureText: { marginTop: 8, textAlign: 'center', color: '#8390A2', fontSize: 12, fontWeight: '600' },
+  puzzleMeasureText: { marginTop: 8, textAlign: 'center', color: '#BCC3CD', fontSize: 12, fontWeight: '600' },
   puzzlePieceDraggableWrap: { borderRadius: 12 },
   puzzlePiece: {
-    borderRadius: 10, backgroundColor: '#F8FBFF',
+    borderRadius: 10, backgroundColor: '#FAFCFF',
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12, shadowRadius: 3,
@@ -3376,6 +3385,6 @@ const styles = StyleSheet.create({
   },
   foundBorder: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    borderWidth: 3, borderColor: '#2E7D32',
+    borderWidth: 3, borderColor: '#8EB990',
   },
 });
