@@ -1,0 +1,39 @@
+# Publishes a JavaScript bundle to EAS Update when you push to these branches.
+# iPhones running a standalone build whose channel matches will download the new bundle on next app open.
+#
+# Setup (once per GitHub repo):
+# 1. expo.dev → Account settings → Access tokens → create token
+# 2. GitHub repo → Settings → Secrets and variables → Actions → New repository secret: EXPO_TOKEN
+#
+# Your native build must use the same channel (see eas.json "channel" under build.preview).
+# Example: eas build --platform ios --profile preview
+
+name: EAS Update
+
+on:
+  push:
+    branches:
+      - feature/init
+      - main
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Publish EAS Update (review channel)
+        run: eas update --channel review --non-interactive --message "${{ github.sha }}"
