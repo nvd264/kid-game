@@ -5,8 +5,8 @@
 # 1. expo.dev → Account settings → Access tokens → create token
 # 2. GitHub repo → Settings → Secrets and variables → Actions → New repository secret: EXPO_TOKEN
 #
-# Your native build must use the same channel (see eas.json "channel" under build.production).
-# Example: eas build --platform ios --profile production
+# Your native build must use the same channel (see eas.json "channel" under build.preview).
+# Example: eas build --platform ios --profile preview
 
 name: EAS Update
 
@@ -35,5 +35,5 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Publish EAS Update (production channel)
-        run: eas update --channel production --non-interactive --message "${{ github.sha }}"
+      - name: Publish EAS Update (review channel)
+        run: eas update --channel review --non-interactive --message "${{ github.sha }}"

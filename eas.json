@@ -11,7 +11,7 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "review"
     },
     "production": {
       "autoIncrement": true,
