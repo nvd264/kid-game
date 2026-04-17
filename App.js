@@ -378,7 +378,7 @@ const MemoryCard = ({ card, isFlipped, isMatched, cardSize, onPress, disabled, i
 
   const bg = isMatched ? '#E8FAEB' : '#FFFFFF';
   const shadow = isMatched
-    ? { shadowColor: '#8EB990', shadowOpacity: 0.55, shadowRadius: 8, elevation: 8 }
+    ? { shadowColor: '#18C66A', shadowOpacity: 0.58, shadowRadius: 9, elevation: 8 }
     : { elevation: 3, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4 };
   const hintScale = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] });
   const hintLift = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
@@ -464,7 +464,7 @@ const DiffCell = ({ emoji, index, isClickable, isFound, isWrong, onTap, cellSize
 
   const bg = isFound ? '#C4E4C5' : isWrong ? '#F4BCBC' : 'white';
   const shadow = isFound
-    ? { shadowColor: '#8EB990', shadowOpacity: 0.55, shadowRadius: 6, elevation: 6 }
+    ? { shadowColor: '#18C66A', shadowOpacity: 0.56, shadowRadius: 7, elevation: 6 }
     : { elevation: 1 };
 
   return (
@@ -627,7 +627,7 @@ const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue, onExit
             onPress={() => { stopCelebration(); playSound('tap'); onContinue(); }}
             style={{ width: '100%', marginTop: 18 }}
           >
-            <LinearGradient colors={['#FFC8A4', '#FFAF92']} style={styles.winButton}>
+            <LinearGradient colors={['#FFD84D', '#FF8A00']} style={styles.winButton}>
               <Text style={styles.winButtonText}>{continueLabel}</Text>
             </LinearGradient>
           </AnimatedPressable>
@@ -668,25 +668,25 @@ const LevelProgressHeader = ({
 
 // Theme card colours (background tint per theme)
 const THEME_COLORS = {
-  animals:  { bg: '#FFF7EB', accent: '#FFC375', border: '#FFDDAB' },
-  fruits:   { bg: '#F7EEF8', accent: '#C289D1', border: '#DFB8E5' },
-  vehicles: { bg: '#EDF6FE', accent: '#81ACDD', border: '#B6DCFB' },
+  animals:  { bg: '#FFF1D9', accent: '#FF8A00', border: '#FFC56A' },
+  fruits:   { bg: '#FFE6F8', accent: '#FF3FB2', border: '#FF9ADD' },
+  vehicles: { bg: '#E7F4FF', accent: '#1C9BFF', border: '#8CD1FF' },
 };
 
 // Full-card gradients for the new theme row cards
 const THEME_GRADIENTS = {
-  animals:  ['#FFC9AF', '#FFAEB6'],
-  fruits:   ['#F6A8E3', '#C9A7EE'],
-  vehicles: ['#ABD9FF', '#8FD5F8'],
+  animals:  ['#FF7A00', '#FFD400'],
+  fruits:   ['#FF4FB7', '#9F4CFF'],
+  vehicles: ['#23B6FF', '#2BE0C8'],
 };
 
 // Level visual config
 const LEVEL_CONFIG = {
-  easy: { color: '#99CC9C', bg: '#F6FAF0', label: '⭐', desc: 'Khởi động nhẹ nhàng' },
-  medium: { color: '#FDC175', bg: '#FFFAEB', label: '⭐⭐', desc: 'Tăng số lượng và nhịp độ' },
-  hard: { color: '#F19492', bg: '#FFF2F4', label: '⭐⭐⭐', desc: 'Nhiều thẻ và ít sai sót' },
-  expert: { color: '#C289D1', bg: '#F7EEF8', label: '⭐⭐⭐⭐', desc: 'Mật độ cao, phản xạ nhanh' },
-  master: { color: '#8B92C5', bg: '#F0F1F9', label: '⭐⭐⭐⭐⭐', desc: 'Thử thách tối đa' },
+  easy: { color: '#17C964', bg: '#E9FFF2', label: '⭐', desc: 'Khởi động nhẹ nhàng' },
+  medium: { color: '#FF9F1C', bg: '#FFF5E5', label: '⭐⭐', desc: 'Tăng số lượng và nhịp độ' },
+  hard: { color: '#FF4D6D', bg: '#FFEFF4', label: '⭐⭐⭐', desc: 'Nhiều thẻ và ít sai sót' },
+  expert: { color: '#A54DFF', bg: '#F4E9FF', label: '⭐⭐⭐⭐', desc: 'Mật độ cao, phản xạ nhanh' },
+  master: { color: '#2575FF', bg: '#EAF1FF', label: '⭐⭐⭐⭐⭐', desc: 'Thử thách tối đa' },
 };
 
 const MEMORY_LEVELS = [
@@ -727,6 +727,11 @@ const PUZZLE_LEVELS = [
 
 const MemoryGame = ({ playSound, onExit }) => {
   const releasedLevels = useMemo(() => getReleasedLevelConfigs(MEMORY_LEVELS), []);
+  const memoryThemeGradients = useMemo(() => ({
+    animals: ['#FF79B2', '#FFAA86'],
+    fruits: ['#FF69CD', '#B07AFF'],
+    vehicles: ['#FF8D96', '#FFC06A'],
+  }), []);
   const [screen, setScreen] = useState('theme');
   const [selectedTheme, setSelectedTheme] = useState(null);
   const [cards, setCards] = useState([]);
@@ -872,13 +877,13 @@ const MemoryGame = ({ playSound, onExit }) => {
   // ── Theme screen ──
   if (screen === 'theme') {
     return (
-      <LinearGradient colors={['#CBE4FF', '#DCC7F7']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#FF6CB8', '#FF9C7B']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#979FD6" />
+            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
           </AnimatedPressable>
-          <Text style={[styles.headerTitle, { color: '#536E88', textShadowColor: 'rgba(255,255,255,0.4)', textShadowRadius: 1 }]}>🃏 Chủ đề</Text>
+          <Text style={[styles.headerTitle, { color: '#FFF9F0', textShadowColor: 'rgba(57,8,89,0.35)', textShadowRadius: 3 }]}>🃏 Chủ đề</Text>
           <View style={{ width: 70 }} />
         </View>
 
@@ -894,7 +899,7 @@ const MemoryGame = ({ playSound, onExit }) => {
             return (
               <AnimatedPressable key={key}
                 onPress={() => { playSound('themeSelect'); startGame(key, 0); }}>
-                <LinearGradient colors={THEME_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
+                <LinearGradient colors={memoryThemeGradients[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
                   <View style={styles.kidThemeEmojiWrap}>
                     <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
                   </View>
@@ -931,11 +936,11 @@ const MemoryGame = ({ playSound, onExit }) => {
     const gridW = cols * cardSize + (cols - 1) * gap;
 
     return (
-      <LinearGradient colors={['#FFC8A4', '#FFAF92']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#FF63B5', '#FFC071']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Ionicons name="chevron-back" size={24} color="#979FD6" />
+            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
           </AnimatedPressable>
           <LevelProgressHeader
             tier={currentLevel.tier}
@@ -1144,17 +1149,17 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
       hard: { emoji: '🚀', badge: '4 lựa chọn', rounds: '6 câu', meter: 3 },
     };
     const LEVEL_GRADIENTS = {
-      easy: ['#8FDDF6', '#8FBAF5'],
-      medium: ['#F8C89D', '#F6DB89'],
-      hard: ['#E9B0B4', '#ECB9B0'],
+      easy: ['#67E4FF', '#54B4FF'],
+      medium: ['#5ED2FF', '#5B97FF'],
+      hard: ['#54BFFF', '#6C7BFF'],
     };
 
     return (
-      <LinearGradient colors={['#A9B3FF', '#C8A6FF']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#63DFFF', '#6786FF']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#979FD6" />
+            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
           </AnimatedPressable>
           <Text style={styles.headerTitle}>🐾 Nghe tiếng thú</Text>
           <View style={{ width: 70 }} />
@@ -1203,11 +1208,11 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
   if (screen === 'play' && roundData && selectedLevel) {
     const levelConfig = levels[selectedLevel];
     return (
-      <LinearGradient colors={['#A9B3FF', '#C8A6FF']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#63DFFF', '#6786FF']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('level'); }}>
-            <Ionicons name="chevron-back" size={24} color="#979FD6" />
+            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
           </AnimatedPressable>
           <View style={styles.statPill}>
             <Text style={styles.animalRoundText}>Câu {currentRound}/{levelConfig.roundsToWin}</Text>
@@ -1221,7 +1226,7 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
           </Text>
 
           <AnimatedPressable onPress={playRoundSound} disabled={isPlayingAnimalSound || isCorrectCelebrating}>
-            <LinearGradient colors={['#FFFFFF', '#F0F6FF']} style={styles.soundPlayButton}>
+            <LinearGradient colors={['#FFFFFF', '#D8F1FF']} style={styles.soundPlayButton}>
               <Text style={styles.soundPlayButtonIcon}>{(isPlayingAnimalSound || isRoundPreparing) ? '🔊' : '🔈'}</Text>
             </LinearGradient>
           </AnimatedPressable>
@@ -1663,11 +1668,11 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
     const mistakesLeft = Math.max(0, currentLevel.maxMistakes - wrongPicks);
 
     return (
-      <LinearGradient colors={['#CDEFD7', '#C4E6FF']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#FFD84D', '#58C54A']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#979FD6" />
+            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
           </AnimatedPressable>
           <LevelProgressHeader
             tier={currentLevel.tier}
@@ -1790,6 +1795,11 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
 // ============================================
 const PuzzleGame = ({ playSound, onExit }) => {
   const releasedLevels = useMemo(() => getReleasedLevelConfigs(PUZZLE_LEVELS), []);
+  const puzzleThemeGradients = useMemo(() => ({
+    animals: ['#A9DE63', '#73CB6F'],
+    fruits: ['#95D86A', '#62C475'],
+    vehicles: ['#84CF6E', '#50B978'],
+  }), []);
   const [screen, setScreen] = useState('theme');
   const [selectedTheme, setSelectedTheme] = useState(null);
   const [roundData, setRoundData] = useState(null);
@@ -1928,13 +1938,13 @@ const PuzzleGame = ({ playSound, onExit }) => {
 
   if (screen === 'theme') {
     return (
-      <LinearGradient colors={['#A0D2A6', '#8DC2AF']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#B2DE62', '#66C474']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#979FD6" />
+            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
           </AnimatedPressable>
-          <Text style={[styles.headerTitle, { color: '#4F6F67', textShadowColor: 'rgba(255,255,255,0.4)', textShadowRadius: 1 }]}>🧮 Chủ đề</Text>
+          <Text style={[styles.headerTitle, { color: '#F7FEEB', textShadowColor: 'rgba(20,56,19,0.3)', textShadowRadius: 3 }]}>🧮 Chủ đề</Text>
           <View style={{ width: 70 }} />
         </View>
 
@@ -1950,7 +1960,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
             return (
               <AnimatedPressable key={key}
                 onPress={() => { playSound('themeSelect'); startGame(key, 0); }}>
-                <LinearGradient colors={THEME_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
+                <LinearGradient colors={puzzleThemeGradients[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
                   <View style={styles.kidThemeEmojiWrap}>
                     <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
                   </View>
@@ -1979,11 +1989,11 @@ const PuzzleGame = ({ playSound, onExit }) => {
     const emojiSizeB = computeEmojiSizeForCard(roundData.secondCount, rightCountCardBox);
 
     return (
-      <LinearGradient colors={['#A0D2A6', '#8DC2AF']} style={{ flex: 1 }}>
+      <LinearGradient colors={['#B2DE62', '#66C474']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Ionicons name="chevron-back" size={24} color="#979FD6" />
+            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
           </AnimatedPressable>
           <LevelProgressHeader
             tier={currentLevel.tier}
@@ -1996,7 +2006,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
           <View style={styles.countTopHalf}>
             <View style={styles.countQuestionCard}>
               <Text style={styles.countQuestionTitle}>🧮 + 🧮 = ?</Text>
-              <Text style={[styles.countOptionsTitle, { color: '#8EB990', marginBottom: 10 }]}>
+              <Text style={[styles.countOptionsTitle, { color: '#2F8D47', marginBottom: 10 }]}>
                 {getTierLabel(currentLevel.tier)} · Sai {wrongPicks}/{currentLevel.mistakeBudget}
               </Text>
               <View style={styles.countEquationWrap}>
@@ -2108,6 +2118,9 @@ export default function App() {
   const [audioReady, setAudioReady]   = useState(false);
   const [musicEnabled, setMusicEnabled] = useState(false);
   const floatAnim = useRef(new Animated.Value(0)).current;
+  const bubblePulseA = useRef(new Animated.Value(0)).current;
+  const bubblePulseB = useRef(new Animated.Value(0)).current;
+  const bubblePulseC = useRef(new Animated.Value(0)).current;
 
   const [fontsLoaded] = useFonts({ Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black });
 
@@ -2135,6 +2148,27 @@ export default function App() {
     ).start();
   }, []);
 
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bubblePulseA, { toValue: 1, duration: 1800, useNativeDriver: true }),
+        Animated.timing(bubblePulseA, { toValue: 0, duration: 1800, useNativeDriver: true }),
+      ])
+    ).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bubblePulseB, { toValue: 1, duration: 2300, useNativeDriver: true }),
+        Animated.timing(bubblePulseB, { toValue: 0, duration: 2300, useNativeDriver: true }),
+      ])
+    ).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bubblePulseC, { toValue: 1, duration: 2800, useNativeDriver: true }),
+        Animated.timing(bubblePulseC, { toValue: 0, duration: 2800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
   const playSound = (type) => { soundManager.play(type); };
   const toggleMusic = async () => {
     playSound('tap');
@@ -2155,7 +2189,7 @@ export default function App() {
 
   if (!audioReady) {
     return (
-      <LinearGradient colors={['#ACB9F4', '#B59ECD']} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <LinearGradient colors={['#3E5BFF', '#B43BFF']} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <StatusBar barStyle="light-content" />
         <Text style={{ fontSize: 72 }}>🎵</Text>
         <Text style={styles.audioLoadingText}>Đang chuẩn bị nhạc nền...</Text>
@@ -2173,7 +2207,7 @@ export default function App() {
         {gameScreen}
         <TouchableOpacity onPress={toggleMusic} style={styles.musicToggleGame} activeOpacity={0.9}>
           <LinearGradient
-            colors={musicEnabled ? ['#F8FFFA', '#E5F9EC'] : ['#FFF7F7', '#F9E5E5']}
+            colors={musicEnabled ? ['#FFFFFF', '#D7FFEC'] : ['#FFF3FB', '#FFD5EC']}
             style={styles.musicToggleButton}
           >
             <Text style={styles.musicToggleIcon}>{musicEnabled ? '🔊' : '🔇'}</Text>
@@ -2188,11 +2222,11 @@ export default function App() {
   const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
 
   return (
-    <LinearGradient colors={['#ACB9F4', '#B59ECD']} style={styles.container}>
+    <LinearGradient colors={['#3E5BFF', '#B43BFF']} style={styles.container}>
       <StatusBar barStyle="light-content" />
       <TouchableOpacity onPress={toggleMusic} style={styles.musicToggleHome} activeOpacity={0.9}>
         <LinearGradient
-          colors={musicEnabled ? ['#F8FFFA', '#E5F9EC'] : ['#FFF7F7', '#F9E5E5']}
+          colors={musicEnabled ? ['#FFFFFF', '#D7FFEC'] : ['#FFF3FB', '#FFD5EC']}
           style={styles.musicToggleButton}
         >
           <Text style={styles.musicToggleIcon}>{musicEnabled ? '🔊' : '🔇'}</Text>
@@ -2200,9 +2234,27 @@ export default function App() {
       </TouchableOpacity>
 
       {/* Decorative circles */}
-      <View style={styles.bgBubbleOne} />
-      <View style={styles.bgBubbleTwo} />
-      <View style={styles.bgBubbleThree} />
+      <Animated.View style={[
+        styles.bgBubbleOne,
+        {
+          opacity: bubblePulseA.interpolate({ inputRange: [0, 1], outputRange: [0.28, 0.48] }),
+          transform: [{ scale: bubblePulseA.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1.09] }) }],
+        },
+      ]} />
+      <Animated.View style={[
+        styles.bgBubbleTwo,
+        {
+          opacity: bubblePulseB.interpolate({ inputRange: [0, 1], outputRange: [0.24, 0.42] }),
+          transform: [{ scale: bubblePulseB.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1.08] }) }],
+        },
+      ]} />
+      <Animated.View style={[
+        styles.bgBubbleThree,
+        {
+          opacity: bubblePulseC.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.55] }),
+          transform: [{ scale: bubblePulseC.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1.14] }) }],
+        },
+      ]} />
 
       <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
@@ -2215,34 +2267,37 @@ export default function App() {
         {/* Game buttons */}
         <View style={{ width: '100%', paddingHorizontal: 20, gap: 14, marginTop: 20 }}>
           <AnimatedPressable onPress={() => handleGameSelect('memory')}>
-            <LinearGradient colors={['#FFC8A4', '#FFAF92']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+            <LinearGradient colors={['#FF9A22', '#FF4F8B']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
               <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🃏</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gameButtonText, { fontFamily: F }]}>Tìm Cặp</Text>
                 <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🧠✨</Text>
               </View>
+              <View style={styles.gameButtonSparkle}><Text style={styles.gameButtonSparkleText}>✨</Text></View>
               <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
             </LinearGradient>
           </AnimatedPressable>
 
           <AnimatedPressable onPress={() => handleGameSelect('puzzle')}>
-            <LinearGradient colors={['#A4EAC0', '#8EE3B2']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+            <LinearGradient colors={['#9EE22D', '#3BBB4B']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
               <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🧮</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gameButtonText, { fontFamily: F }]}>Đếm Hình</Text>
                 <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🧮✅</Text>
               </View>
+              <View style={styles.gameButtonSparkle}><Text style={styles.gameButtonSparkleText}>🌟</Text></View>
               <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
             </LinearGradient>
           </AnimatedPressable>
 
           <AnimatedPressable onPress={() => handleGameSelect('garden')}>
-            <LinearGradient colors={['#99E2B7', '#8DD1A8']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+            <LinearGradient colors={['#FFB43D', '#FF7D45']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
               <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🌾</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gameButtonText, { fontFamily: F }]}>Vườn Thu Hoạch</Text>
                 <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🌱🧺</Text>
               </View>
+              <View style={styles.gameButtonSparkle}><Text style={styles.gameButtonSparkleText}>💫</Text></View>
               <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
             </LinearGradient>
           </AnimatedPressable>
@@ -2267,19 +2322,19 @@ const styles = StyleSheet.create({
   },
   bgBubbleOne: {
     position: 'absolute', width: 260, height: 260, borderRadius: 130,
-    backgroundColor: 'rgba(255,255,255,0.10)', top: -80, right: -80,
+    backgroundColor: 'rgba(255,255,255,0.34)', top: -80, right: -80,
   },
   bgBubbleTwo: {
     position: 'absolute', width: 190, height: 190, borderRadius: 95,
-    backgroundColor: 'rgba(255,255,255,0.08)', bottom: 60, left: -70,
+    backgroundColor: 'rgba(255,255,255,0.30)', bottom: 60, left: -70,
   },
   bgBubbleThree: {
     position: 'absolute', width: 100, height: 100, borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.12)', top: 220, left: 30,
+    backgroundColor: 'rgba(255,255,255,0.38)', top: 220, left: 30,
   },
-  title:    { fontSize: 38, fontWeight: '900', color: 'white', textAlign: 'center',
-              textShadowColor: 'rgba(0,0,0,0.18)', textShadowOffset: {width:0,height:2}, textShadowRadius: 4 },
-  subtitle: { fontSize: 16, color: 'rgba(255,255,255,0.85)', marginTop: 6, textAlign: 'center' },
+  title:    { fontSize: 42, fontWeight: '900', color: 'white', textAlign: 'center',
+              textShadowColor: 'rgba(36,5,120,0.44)', textShadowOffset: {width:0,height:3}, textShadowRadius: 8 },
+  subtitle: { fontSize: 19, color: 'rgba(255,255,255,0.9)', marginTop: 6, textAlign: 'center' },
   audioLoadingText: {
     marginTop: 10,
     color: 'white',
@@ -2303,13 +2358,13 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 27,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.45)',
+    borderColor: 'rgba(255,255,255,0.8)',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
-    shadowColor: '#8C8C9B',
+    shadowColor: '#41258A',
     shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.24,
+    shadowOpacity: 0.32,
     shadowRadius: 8,
   },
   musicToggleIcon: {
@@ -2318,27 +2373,44 @@ const styles = StyleSheet.create({
   // ── Game buttons (home screen) ──
   gameButtonCard: {
     borderRadius: 24, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.46)',
     elevation: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10,
+    shadowColor: '#20084B', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.36, shadowRadius: 12,
   },
   gameButtonCardIcon: {
-    width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.25)',
+    width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.34)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.62)',
+  },
+  gameButtonText:    { color: 'white', fontSize: 25, fontWeight: '900' },
+  gameButtonSubText: { color: 'rgba(255,255,255,0.95)', fontSize: 18, marginTop: 2, fontWeight: '800' },
+  gameButtonArrowBadge: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.36)',
     alignItems: 'center', justifyContent: 'center',
   },
-  gameButtonText:    { color: 'white', fontSize: 22, fontWeight: '900' },
-  gameButtonSubText: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 2, fontWeight: '700' },
-  gameButtonArrowBadge: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center', justifyContent: 'center',
+  gameButtonSparkle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.64)',
+  },
+  gameButtonSparkleText: {
+    fontSize: 14,
   },
   gameButtonArrow: { color: 'white', fontSize: 16, fontWeight: '900' },
   // ── Big action button (win screen etc.) ──
   bigButton: {
     paddingVertical: 16, paddingHorizontal: 32,
     borderRadius: 30, width: '100%', alignItems: 'center',
-    backgroundColor: '#FFAF92',
+    backgroundColor: '#FF8A00',
     elevation: 5,
-    shadowColor: '#E29D83', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.4, shadowRadius: 6,
+    shadowColor: '#B74800', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.42, shadowRadius: 7,
   },
   bigButtonText: { color: 'white', fontSize: 20, fontWeight: '900', letterSpacing: 0.4 },
   header: {
@@ -2351,30 +2423,32 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     borderWidth: 2,
-    borderColor: '#E5EDFF',
+    borderColor: '#D6DCFF',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,
-    shadowColor: '#838DAC',
+    shadowColor: '#4B3B89',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22,
+    shadowOpacity: 0.3,
     shadowRadius: 10,
   },
   statsRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   statPill: {
-    backgroundColor: 'rgba(255,255,255,0.92)', paddingVertical: 8, paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.95)', paddingVertical: 8, paddingHorizontal: 14,
     borderRadius: 20, elevation: 3,
+    borderWidth: 1,
+    borderColor: '#FFD05B',
   },
-  statPillText: { fontSize: 14, fontWeight: '800', color: '#FFAF92' },
+  statPillText: { fontSize: 14, fontWeight: '800', color: '#E06A2F' },
   levelHeaderCard: {
     minWidth: 220,
     maxWidth: 270,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: 'rgba(255,255,255,0.98)',
     borderRadius: 18,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
+    borderColor: '#FFE59D',
     elevation: 4,
   },
   levelHeaderTopRow: {
@@ -2399,7 +2473,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   levelHeaderValueMain: {
-    color: '#8EB990',
+    color: '#13A862',
     fontSize: 22,
     lineHeight: 24,
     fontWeight: '900',
@@ -2415,12 +2489,12 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: '#E3F0E6',
+    backgroundColor: '#DFF7EB',
   },
   levelHeaderBarFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#9ED4A0',
+    backgroundColor: '#18C66A',
     justifyContent: 'center',
   },
   levelHeaderProgressGlow: {
@@ -2428,11 +2502,11 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#FAFFF9',
+    backgroundColor: '#FFF5BF',
     marginRight: -1,
   },
-  headerTitle: { color: 'white', fontSize: 20, fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.2)', textShadowRadius: 3 },
+  headerTitle: { color: '#FFFFFF', fontSize: 23, fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.28)', textShadowRadius: 4 },
   // ── Reward popup ──
   popupOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',
@@ -2446,9 +2520,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFEEEE', justifyContent: 'center', alignItems: 'center', zIndex: 10,
   },
   popupCloseBtnText: { fontSize: 16, color: '#F19492', fontWeight: '700' },
-  popupPraiseText: { fontSize: 26, fontWeight: '900', color: '#333', marginTop: 8, textAlign: 'center' },
+  popupPraiseText: { fontSize: 30, fontWeight: '900', color: '#333', marginTop: 8, textAlign: 'center' },
   popupLevelText: {
-    fontSize: 24,
+    fontSize: 29,
     color: '#9FA9A2',
     marginBottom: 4,
     fontWeight: '900',
@@ -2466,7 +2540,7 @@ const styles = StyleSheet.create({
     elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2, shadowRadius: 16,
   },
-  winTitle:     { fontSize: 30, fontWeight: '900', color: '#FFAF92', marginTop: 4, textAlign: 'center' },
+  winTitle:     { fontSize: 30, fontWeight: '900', color: '#FF7A00', marginTop: 4, textAlign: 'center' },
   winSubtitle:  { fontSize: 16, color: '#666', textAlign: 'center', fontWeight: '700' },
   winButton: {
     borderRadius: 28,
@@ -2483,7 +2557,7 @@ const styles = StyleSheet.create({
   },
   winButtonText: {
     color: 'white',
-    fontSize: 22,
+    fontSize: 25,
     fontWeight: '900',
     letterSpacing: 0.2,
     textAlign: 'center',
@@ -2520,28 +2594,28 @@ const styles = StyleSheet.create({
   kidSelectIntroCard: {
     marginHorizontal: 16,
     marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: 'rgba(255,255,255,0.62)',
     borderRadius: 20,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.58)',
+    borderColor: 'rgba(255,255,255,0.82)',
     elevation: 4,
-    shadowColor: '#8FA8B7',
+    shadowColor: '#3E3C89',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.18,
     shadowRadius: 7,
   },
   kidSelectIntroTitle: {
-    color: '#4A5F5D',
-    fontSize: 18,
+    color: '#3A3F71',
+    fontSize: 22,
     fontWeight: '900',
   },
   kidSelectIntroSub: {
     marginTop: 4,
-    color: '#5D6F6D',
-    fontSize: 14,
-    fontWeight: '700',
+    color: '#4E5A88',
+    fontSize: 18,
+    fontWeight: '800',
   },
   kidSelectScrollContent: {
     paddingHorizontal: 16,
@@ -2582,18 +2656,18 @@ const styles = StyleSheet.create({
   },
   kidThemeName: {
     color: 'white',
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '900',
     lineHeight: 36,
-    textShadowColor: 'rgba(0,0,0,0.26)',
+    textShadowColor: 'rgba(0,0,0,0.32)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 5,
   },
   kidThemeSub: {
     marginTop: 3,
-    color: 'rgba(255,255,255,0.98)',
-    fontSize: 14,
-    fontWeight: '800',
+    color: '#FFFDEB',
+    fontSize: 20,
+    fontWeight: '900',
   },
   kidLevelCard: {
     borderRadius: 24,
@@ -2619,7 +2693,7 @@ const styles = StyleSheet.create({
     fontSize: 33,
     fontWeight: '900',
     lineHeight: 36,
-    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowColor: 'rgba(0,0,0,0.32)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
@@ -2640,10 +2714,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   levelMiniBadge: {
-    backgroundColor: 'rgba(255,255,255,0.24)',
+    backgroundColor: 'rgba(255,255,255,0.36)',
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.75)',
   },
   levelMiniBadgeText: {
     color: 'white',
@@ -2680,12 +2756,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   memoryLevelIntroCard: {
-    backgroundColor: 'rgba(255,255,255,0.20)',
+    backgroundColor: 'rgba(255,255,255,0.36)',
     borderRadius: 20,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.30)',
+    borderColor: 'rgba(255,255,255,0.62)',
   },
   memoryLevelIntroTitle: {
     color: 'white',
@@ -2733,7 +2809,7 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     lineHeight: 38,
-    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowColor: 'rgba(0,0,0,0.32)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
@@ -2774,7 +2850,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   memoryLevelDesc: {
-    color: 'rgba(255,255,255,0.92)',
+    color: '#FFFDE9',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -2813,13 +2889,13 @@ const styles = StyleSheet.create({
   },
   levelCardPurple: { borderLeftWidth: 4, borderLeftColor: '#C3A9EA' },
   levelCardGreen:  { borderLeftWidth: 4, borderLeftColor: '#9BD5A9' },
-  levelName: { fontSize: 26, fontWeight: '800', color: '#FFAF92' },
+  levelName: { fontSize: 26, fontWeight: '800', color: '#FF7A00' },
   levelDesc: { fontSize: 16, color: '#666', marginTop: 5 },
   movesBox: {
     backgroundColor: 'white', paddingVertical: 8, paddingHorizontal: 20,
     borderRadius: 15, minWidth: 126,
   },
-  movesText: { fontSize: 16, fontWeight: '700', color: '#FFAF92' },
+  movesText: { fontSize: 16, fontWeight: '700', color: '#FF7A00' },
   progressText: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
   gameGrid: {
     flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 14,
@@ -2832,7 +2908,8 @@ const styles = StyleSheet.create({
   cardFlipped: { backgroundColor: '#FFF7EB' },
   cardMatched: { backgroundColor: '#DBEEDB' },
   hintText: {
-    color: 'white', fontSize: 15, fontWeight: '700', marginBottom: 10, textAlign: 'center',
+    color: '#FFFBE8', fontSize: 22, fontWeight: '900', marginBottom: 10, textAlign: 'center',
+    textShadowColor: 'rgba(59,9,99,0.42)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 5,
   },
   gardenPlayWrap: {
     flex: 1,
@@ -2850,7 +2927,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5F8E9',
   },
   gardenMissionTitle: {
-    color: '#8EB990',
+    color: '#15AD66',
     fontSize: 28,
     fontWeight: '900',
     textAlign: 'center',
@@ -2884,8 +2961,8 @@ const styles = StyleSheet.create({
   gardenMissionHint: {
     marginTop: 6,
     color: '#9FACA0',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     textAlign: 'center',
   },
   gardenTargetPreviewCard: {
@@ -2923,7 +3000,7 @@ const styles = StyleSheet.create({
   },
   gardenTargetPreviewName: {
     marginTop: 6,
-    color: '#8EB990',
+    color: '#15AD66',
     fontSize: 20,
     fontWeight: '900',
     textAlign: 'center',
@@ -2983,7 +3060,7 @@ const styles = StyleSheet.create({
   },
   gardenDropZoneCounter: {
     marginTop: 5,
-    color: '#8EB990',
+    color: '#15AD66',
     fontSize: 22,
     fontWeight: '900',
   },
@@ -3045,7 +3122,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#8EB990',
+    backgroundColor: '#18C66A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3075,10 +3152,12 @@ const styles = StyleSheet.create({
   },
   countQuestionCard: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: 'rgba(255,255,255,0.99)',
     borderRadius: 22,
     paddingVertical: 18,
     paddingHorizontal: 14,
+    borderWidth: 2,
+    borderColor: '#C9EE86',
   },
   countPlayContent: {
     flex: 1,
@@ -3096,8 +3175,8 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   countQuestionTitle: {
-    color: '#8EB990',
-    fontSize: 24,
+    color: '#2F8D47',
+    fontSize: 30,
     fontWeight: '900',
     textAlign: 'center',
     marginBottom: 14,
@@ -3111,10 +3190,10 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   countItemCard: {
-    backgroundColor: '#F8FFFA',
+    backgroundColor: '#F6FFE9',
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: '#D4F0DB',
+    borderColor: '#B8E16E',
     flex: 1,
     minHeight: 0,
     maxHeight: '100%',
@@ -3127,7 +3206,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   countItemNumber: {
-    color: '#8EB990',
+    color: '#2F8D47',
     fontSize: 40,
     fontWeight: '900',
     lineHeight: 44,
@@ -3148,7 +3227,7 @@ const styles = StyleSheet.create({
     lineHeight: 46,
   },
   countMathSign: {
-    color: '#8EB990',
+    color: '#2F8D47',
     fontSize: 42,
     fontWeight: '900',
     alignSelf: 'center',
@@ -3163,7 +3242,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   countResultText: {
-    color: '#8EB990',
+    color: '#2F8D47',
     fontSize: 54,
     fontWeight: '900',
     lineHeight: 58,
@@ -3171,17 +3250,17 @@ const styles = StyleSheet.create({
   },
   countOptionsWrap: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(34, 101, 39, 0.16)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
+    borderColor: 'rgba(233,255,190,0.68)',
     paddingVertical: 12,
     paddingHorizontal: 10,
     overflow: 'hidden',
   },
   countOptionsTitle: {
-    color: 'white',
-    fontSize: 18,
+    color: '#F8FFDF',
+    fontSize: 24,
     fontWeight: '900',
     textAlign: 'center',
     marginBottom: 10,
@@ -3209,7 +3288,7 @@ const styles = StyleSheet.create({
     minWidth: 110,
   },
   countOptionText: {
-    color: '#8EB990',
+    color: '#2F8D47',
     fontSize: 40,
     fontWeight: '900',
     lineHeight: 44,
@@ -3253,7 +3332,7 @@ const styles = StyleSheet.create({
     fontSize: 56,
   },
   animalRoundText: {
-    color: '#A696D0',
+    color: '#1A4EA3',
     fontSize: 16,
     fontWeight: '900',
   },
@@ -3326,7 +3405,7 @@ const styles = StyleSheet.create({
   },
   correctToastText: {
     marginTop: 2,
-    color: '#8EB990',
+    color: '#15AD66',
     fontSize: 18,
     fontWeight: '900',
     textAlign: 'center',
@@ -3335,8 +3414,8 @@ const styles = StyleSheet.create({
     width: '100%', maxWidth: 500, backgroundColor: 'rgba(255,255,255,0.96)',
     borderRadius: 18, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 12,
   },
-  puzzleGuideTitle: { fontSize: 16, fontWeight: '800', color: '#FFAF92', textAlign: 'center' },
-  puzzleGuideDesc:  { marginTop: 4, fontSize: 13, color: '#A9ABAD', textAlign: 'center', lineHeight: 18 },
+  puzzleGuideTitle: { fontSize: 16, fontWeight: '900', color: '#D45D00', textAlign: 'center' },
+  puzzleGuideDesc:  { marginTop: 4, fontSize: 13, color: '#56606D', textAlign: 'center', lineHeight: 18 },
   puzzlePlayContent: { width: '100%', alignItems: 'center', paddingBottom: 14, flex: 1 },
   puzzleBoardShell:  { width: '100%', alignItems: 'center' },
   puzzleBoard: {
@@ -3385,6 +3464,6 @@ const styles = StyleSheet.create({
   },
   foundBorder: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    borderWidth: 3, borderColor: '#8EB990',
+    borderWidth: 3, borderColor: '#18C66A',
   },
 });
