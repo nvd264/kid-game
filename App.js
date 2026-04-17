@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions
 import { LinearGradient } from 'expo-linear-gradient';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { Audio } from 'expo-av';
+import * as Updates from 'expo-updates';
 import { useFonts, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black } from '@expo-google-fonts/nunito';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -2136,6 +2137,25 @@ export default function App() {
     return () => {
       mounted = false;
       soundManager.unloadSounds();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (__DEV__) return;
+    if (!Updates.isEnabled) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await Updates.checkForUpdateAsync();
+        if (cancelled || !result.isAvailable) return;
+        await Updates.fetchUpdateAsync();
+        if (!cancelled) await Updates.reloadAsync();
+      } catch {
+        // Offline or update server unreachable; keep running current bundle.
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
