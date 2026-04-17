@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StatusBar, Animated } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StatusBar, Animated, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { Audio } from 'expo-av';
@@ -482,6 +482,7 @@ const DiffCell = ({ emoji, index, isClickable, isFound, isWrong, onTap, cellSize
 
 // Confetti particle
 const CONFETTI_EMOJIS = ['⭐', '🌟', '✨', '🎉', '🎊', '💛', '🌈'];
+const LEVEL_ORDER = ['easy', 'medium', 'hard'];
 const ConfettiParticle = ({ anim, x, emoji, size }) => {
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -340] });
   const opacity    = anim.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 0.9, 0] });
@@ -498,30 +499,26 @@ const ConfettiParticle = ({ anim, x, emoji, size }) => {
   );
 };
 
-// Reusable win screen with confetti + sequential stars
-const WinScreen = ({ title, subtitle, stars, onPlayAgain, onExit, playSound }) => {
+// Reward popup modal — shown after each level win
+const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue, onExit, playSound }) => {
   const starScales = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
-  const confettiAnims = useRef(
-    Array.from({ length: 22 }, () => new Animated.Value(0))
-  ).current;
+  const confettiAnims = useRef(Array.from({ length: 18 }, () => new Animated.Value(0))).current;
   const celebrationStoppedRef = useRef(false);
   const timeoutIdsRef = useRef([]);
 
-  const confettiData = useMemo(() =>
-    confettiAnims.map((_, i) => ({
-      x: Math.floor(Math.random() * (SCREEN_WIDTH - 30)),
+  const confettiData = useRef(
+    Array.from({ length: 18 }, (_, i) => ({
+      x: Math.floor(Math.random() * (SCREEN_WIDTH - 40)),
       emoji: CONFETTI_EMOJIS[i % CONFETTI_EMOJIS.length],
       size: 16 + Math.floor(Math.random() * 16),
-    })), []);
+    }))
+  ).current;
 
   const stopCelebration = useCallback(() => {
     celebrationStoppedRef.current = true;
     timeoutIdsRef.current.forEach((id) => clearTimeout(id));
     timeoutIdsRef.current = [];
-    confettiAnims.forEach((anim) => {
-      anim.stopAnimation();
-      anim.setValue(0);
-    });
+    confettiAnims.forEach((anim) => { anim.stopAnimation(); anim.setValue(0); });
   }, [confettiAnims]);
 
   const schedule = useCallback((delayMs, callback) => {
@@ -532,85 +529,77 @@ const WinScreen = ({ title, subtitle, stars, onPlayAgain, onExit, playSound }) =
   }, []);
 
   useEffect(() => {
+    if (!visible) { stopCelebration(); return; }
     celebrationStoppedRef.current = false;
-
-    // Win + stars run once.
     starScales.forEach((anim) => anim.setValue(0));
     schedule(120, () => playSound('win'));
     [0, 1, 2].forEach((i) => {
       if (i < stars) {
         schedule(300 + i * 320, () => {
           playSound(`star${i + 1}`);
-          Animated.spring(starScales[i], {
-            toValue: 1,
-            useNativeDriver: true,
-            bounciness: 20,
-            speed: 16,
-          }).start();
+          Animated.spring(starScales[i], { toValue: 1, useNativeDriver: true, bounciness: 20, speed: 16 }).start();
         });
       }
     });
 
-    // Only confetti keeps looping (manual loop for better mobile reliability).
     const runConfettiBurst = () => {
       if (celebrationStoppedRef.current) return;
-      confettiAnims.forEach((anim) => {
-        anim.stopAnimation();
-        anim.setValue(0);
-      });
-      Animated.stagger(
-        45,
-        confettiAnims.map((a) =>
-          Animated.timing(a, { toValue: 1, duration: 1400, useNativeDriver: true })
-        )
+      confettiAnims.forEach((anim) => { anim.stopAnimation(); anim.setValue(0); });
+      Animated.stagger(45,
+        confettiAnims.map((a) => Animated.timing(a, { toValue: 1, duration: 1400, useNativeDriver: true }))
       ).start(() => {
         if (celebrationStoppedRef.current) return;
-        const loopTimeout = setTimeout(runConfettiBurst, 260);
-        timeoutIdsRef.current.push(loopTimeout);
+        const t = setTimeout(runConfettiBurst, 260);
+        timeoutIdsRef.current.push(t);
       });
     };
-    const firstBurstTimeout = setTimeout(runConfettiBurst, 160);
-    timeoutIdsRef.current.push(firstBurstTimeout);
+    const t = setTimeout(runConfettiBurst, 160);
+    timeoutIdsRef.current.push(t);
+    return () => { stopCelebration(); };
+  }, [visible, stars]);
 
-    return () => {
-      stopCelebration();
-    };
-  }, [confettiAnims, playSound, schedule, starScales, stars, stopCelebration]);
+  const praiseText = stars >= 3 ? 'Xuất sắc! 🌟' : stars >= 2 ? 'Giỏi lắm! 😊' : 'Cố lên bé nhé! 💪';
+  const isLastLevel = levelNum >= totalLevels;
+  const continueLabel = stars <= 1 ? 'Chơi lại' : isLastLevel ? 'Về chọn game' : 'Tiếp theo ▶';
 
   return (
-    <LinearGradient colors={['#FFECD2', '#FCB69F']} style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
-      {/* Confetti layer */}
-      {confettiAnims.map((anim, i) => (
-        <ConfettiParticle key={i} anim={anim} x={confettiData[i].x} emoji={confettiData[i].emoji} size={confettiData[i].size} />
-      ))}
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+      <View style={styles.popupOverlay}>
+        {confettiAnims.map((anim, i) => (
+          <ConfettiParticle key={i} anim={anim} x={confettiData[i].x} emoji={confettiData[i].emoji} size={confettiData[i].size} />
+        ))}
+        <View style={styles.popupCard}>
+          <TouchableOpacity
+            onPress={() => { stopCelebration(); playSound('tap'); onExit(); }}
+            style={styles.popupCloseBtn}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.popupCloseBtnText}>✕</Text>
+          </TouchableOpacity>
 
-      <View style={styles.winCard}>
-        <Text style={[styles.winTitle]}>{title}</Text>
+          <Text style={styles.popupPraiseText}>{praiseText}</Text>
 
-        {/* Stars */}
-        <View style={{ flexDirection: 'row', marginVertical: 16, gap: 10 }}>
-          {[0, 1, 2].map((i) => (
-            <Animated.Text key={i} style={{ fontSize: 44, transform: [{ scale: starScales[i] }] }}>
-              {i < stars ? '⭐' : '🌑'}
-            </Animated.Text>
-          ))}
+          <View style={{ flexDirection: 'row', gap: 8, marginVertical: 14 }}>
+            {[0, 1, 2].map((i) => (
+              <Animated.Text key={i} style={{ fontSize: 44, transform: [{ scale: starScales[i] }] }}>
+                {i < stars ? '⭐' : '🌑'}
+              </Animated.Text>
+            ))}
+          </View>
+
+          <Text style={styles.popupLevelText}>Màn {levelNum} / {totalLevels}</Text>
+
+          <AnimatedPressable
+            onPress={() => { stopCelebration(); playSound('tap'); onContinue(); }}
+            style={{ width: '100%', marginTop: 18 }}
+          >
+            <LinearGradient colors={['#FF9A56', '#FF6B35']} style={styles.winButton}>
+              <Text style={styles.winButtonText}>{continueLabel}</Text>
+            </LinearGradient>
+          </AnimatedPressable>
         </View>
-
-        <Text style={styles.winSubtitle}>{subtitle}</Text>
-
-        <AnimatedPressable onPress={() => { stopCelebration(); playSound('tap'); onPlayAgain(); }} style={{ width: '100%', marginTop: 18 }}>
-          <LinearGradient colors={['#FF9A56','#FF6B35']} style={styles.winButton}>
-            <Text style={styles.winButtonText}>Chơi lại</Text>
-          </LinearGradient>
-        </AnimatedPressable>
-
-        <AnimatedPressable onPress={() => { stopCelebration(); playSound('tap'); onExit(); }} style={{ width: '100%', marginTop: 14 }}>
-          <LinearGradient colors={['#667EEA','#764BA2']} style={styles.winButton}>
-            <Text style={styles.winButtonText}>Về trang chính</Text>
-          </LinearGradient>
-        </AnimatedPressable>
       </View>
-    </LinearGradient>
+    </Modal>
   );
 };
 
@@ -658,6 +647,9 @@ const MemoryGame = ({ playSound, onExit }) => {
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [hintCardIndex, setHintCardIndex] = useState(null);
   const [guidedAnchorIndex, setGuidedAnchorIndex] = useState(null);
+  const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupStars, setPopupStars] = useState(0);
 
   const startGame = (theme, level) => {
     const items = themes[theme].items.slice(0, levels[level].pairs);
@@ -666,7 +658,21 @@ const MemoryGame = ({ playSound, onExit }) => {
       .sort(() => Math.random() - 0.5);
     setCards(deck);
     setFlipped([]); setMatched([]); setMoves(0); setStars(0); setConsecutiveMatches(0); setWrongAttempts(0); setHintCardIndex(null); setGuidedAnchorIndex(null);
-    setSelectedTheme(theme); setSelectedLevel(level); setScreen('play');
+    setSelectedTheme(theme); setSelectedLevel(level);
+    setCurrentLevelIndex(LEVEL_ORDER.indexOf(level));
+    setShowPopup(false);
+    setScreen('play');
+  };
+
+  const handleContinue = () => {
+    setShowPopup(false);
+    if (popupStars <= 1) {
+      startGame(selectedTheme, LEVEL_ORDER[currentLevelIndex]);
+    } else if (currentLevelIndex < LEVEL_ORDER.length - 1) {
+      startGame(selectedTheme, LEVEL_ORDER[currentLevelIndex + 1]);
+    } else {
+      onExit();
+    }
   };
 
   const suggestCard = useCallback((currentFlipped = [], focusIndex = null, keepUntilPick = false) => {
@@ -758,7 +764,7 @@ const MemoryGame = ({ playSound, onExit }) => {
       if (moves <= pairs * 1.5) s = 3;
       else if (moves <= pairs * 2) s = 2;
       setStars(s);
-      setTimeout(() => { setScreen('win'); }, 500);
+      setTimeout(() => { setPopupStars(s); setShowPopup(true); }, 500);
     }
   }, [matched]);
 
@@ -783,7 +789,7 @@ const MemoryGame = ({ playSound, onExit }) => {
         <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
           {Object.entries(themes).map(([key, theme]) => (
             <AnimatedPressable key={key}
-              onPress={() => { playSound('themeSelect'); setSelectedTheme(key); setScreen('level'); }}>
+              onPress={() => { playSound('themeSelect'); startGame(key, 'easy'); }}>
               <LinearGradient colors={THEME_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
                 <View style={styles.kidThemeEmojiWrap}>
                   <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
@@ -795,85 +801,6 @@ const MemoryGame = ({ playSound, onExit }) => {
               </LinearGradient>
             </AnimatedPressable>
           ))}
-        </ScrollView>
-      </LinearGradient>
-    );
-  }
-
-  // ── Level screen ──
-  if (screen === 'level') {
-    const LEVEL_GRADIENTS = {
-      easy:   ['#43E97B', '#38F9D7'],
-      medium: ['#FA8231', '#f7b733'],
-      hard:   ['#f953c6', '#b91d73'],
-    };
-    const LEVEL_UI = {
-      easy:   { emoji: '😊', badge: '2 cặp', cells: '4 ô', meter: 1 },
-      medium: { emoji: '🤔', badge: '3 cặp', cells: '9 ô', meter: 2 },
-      hard:   { emoji: '🔥', badge: '4 cặp', cells: '8 ô', meter: 3 },
-    };
-
-    return (
-      <LinearGradient colors={['#667EEA', '#764BA2']} style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
-          </AnimatedPressable>
-          <Text style={styles.headerTitle}>🎯 Chọn độ khó</Text>
-          <View style={{ width: 70 }} />
-        </View>
-
-        <ScrollView
-          style={{ width: '100%' }}
-          contentContainerStyle={styles.memoryLevelScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.memoryLevelIntroCard}>
-            <Text style={styles.memoryLevelIntroTitle}>Chọn cấp độ cho bé</Text>
-            <Text style={styles.memoryLevelIntroSub}>
-              Chủ đề: {selectedTheme ? `${themes[selectedTheme].emoji} ${themes[selectedTheme].name}` : '---'}
-            </Text>
-          </View>
-
-          {Object.entries(levels).map(([key, level]) => {
-            const lv = LEVEL_UI[key];
-            return (
-              <AnimatedPressable key={key}
-                onPress={() => { playSound('levelSelect'); startGame(selectedTheme, key); }}>
-                <LinearGradient
-                  colors={LEVEL_GRADIENTS[key]}
-                  start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
-                  style={styles.memoryLevelCard}>
-                  <View style={styles.memoryLevelCardTopRow}>
-                    <View style={styles.memoryLevelIconWrap}>
-                      <Text style={styles.memoryLevelIcon}>{lv.emoji}</Text>
-                    </View>
-                    <View style={styles.memoryLevelTextWrap}>
-                      <Text style={styles.memoryLevelName}>{level.name}</Text>
-                    </View>
-                    <View style={styles.memoryLevelArrowWrap}>
-                      <Text style={styles.memoryLevelArrow}>▶</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.memoryLevelMetaRow}>
-                    <View style={styles.memoryLevelBadge}>
-                      <Text style={styles.memoryLevelBadgeText}>{lv.badge}</Text>
-                    </View>
-                    <View style={styles.memoryLevelBadge}>
-                      <Text style={styles.memoryLevelBadgeText}>{lv.cells}</Text>
-                    </View>
-                    <View style={styles.levelDotsRow}>
-                      {[0, 1, 2].map((i) => (
-                        <View key={i} style={[styles.levelDot, i < lv.meter && styles.levelDotActive]} />
-                      ))}
-                    </View>
-                  </View>
-                </LinearGradient>
-              </AnimatedPressable>
-            );
-          })}
         </ScrollView>
       </LinearGradient>
     );
@@ -910,7 +837,7 @@ const MemoryGame = ({ playSound, onExit }) => {
         <StatusBar barStyle="light-content" />
         {/* Header */}
         <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('level'); }}>
+          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
             <Text style={styles.backButtonText}>◀ Về</Text>
           </AnimatedPressable>
           <View style={{ flex: 1 }} />
@@ -940,21 +867,16 @@ const MemoryGame = ({ playSound, onExit }) => {
             })}
           </View>
         </View>
+        <RewardPopup
+          visible={showPopup}
+          stars={popupStars}
+          levelNum={currentLevelIndex + 1}
+          totalLevels={3}
+          onContinue={handleContinue}
+          onExit={() => { setShowPopup(false); onExit(); }}
+          playSound={playSound}
+        />
       </LinearGradient>
-    );
-  }
-
-  // ── Win screen ──
-  if (screen === 'win') {
-    return (
-      <WinScreen
-        title="Giỏi quá! 🎉"
-        subtitle={`Bé đã hoàn thành trong ${moves} lượt`}
-        stars={stars}
-        onPlayAgain={() => startGame(selectedTheme, selectedLevel)}
-        onExit={onExit}
-        playSound={playSound}
-      />
     );
   }
   return null;
@@ -1002,6 +924,8 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
   const [isRoundPreparing, setIsRoundPreparing] = useState(false);
   const [isCorrectCelebrating, setIsCorrectCelebrating] = useState(false);
   const [selectedCorrectId, setSelectedCorrectId] = useState(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupStars, setPopupStars] = useState(0);
   const roundPlaybackTokenRef = useRef(0);
 
   const generateRound = useCallback((levelKey) => {
@@ -1087,7 +1011,9 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
       const goal = levels[selectedLevel].roundsToWin;
       if (nextRound > goal) {
         setTimeout(() => {
-          setScreen('win');
+          const s = wrongPicks === 0 ? 3 : wrongPicks <= 2 ? 2 : 1;
+          setPopupStars(s);
+          setShowPopup(true);
           setIsCorrectCelebrating(false);
           setSelectedCorrectId(null);
         }, 900);
@@ -1222,20 +1148,16 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
             </View>
           )}
         </View>
+        <RewardPopup
+          visible={showPopup}
+          stars={popupStars}
+          levelNum={1}
+          totalLevels={1}
+          onContinue={() => { setShowPopup(false); startGame(selectedLevel); }}
+          onExit={() => { setShowPopup(false); onExit(); }}
+          playSound={playSound}
+        />
       </LinearGradient>
-    );
-  }
-
-  if (screen === 'win') {
-    return (
-      <WinScreen
-        title="Tai thính quá!"
-        subtitle={`Bé hoàn thành ${levels[selectedLevel].roundsToWin} câu nghe tiếng thú`}
-        stars={getStars()}
-        onPlayAgain={() => startGame(selectedLevel)}
-        onExit={onExit}
-        playSound={playSound}
-      />
     );
   }
   return null;
@@ -1376,9 +1298,9 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
     hard: { name: 'Khó', meter: 3 },
   };
 
-  const [screen, setScreen] = useState('level');
-  const [selectedDifficulty, setSelectedDifficulty] = useState(null);
-  const [activeLevels, setActiveLevels] = useState([]);
+  const [screen, setScreen] = useState('play');
+  const [selectedDifficulty, setSelectedDifficulty] = useState('easy');
+  const [activeLevels, setActiveLevels] = useState(() => GARDEN_LEVELS.filter((l) => l.difficulty === 'easy'));
   const [levelIndex, setLevelIndex] = useState(0);
   const [playItems, setPlayItems] = useState([]);
   const [taskProgress, setTaskProgress] = useState(0);
@@ -1388,6 +1310,9 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
   const [selectedWrongItem, setSelectedWrongItem] = useState(null);
   const [successToast, setSuccessToast] = useState('');
   const [targetRect, setTargetRect] = useState(null);
+  const [currentDifficultyIndex, setCurrentDifficultyIndex] = useState(0);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupStars, setPopupStars] = useState(0);
   const targetRef = useRef(null);
   const wrongMarkOpacity = useRef(new Animated.Value(0)).current;
 
@@ -1440,8 +1365,27 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
     prepareLevel(filteredLevels[0]);
     setTotalCorrect(0);
     setWrongPicks(0);
+    setShowPopup(false);
     setScreen('play');
   };
+
+  const handleContinue = () => {
+    setShowPopup(false);
+    if (popupStars <= 1) {
+      startGame(LEVEL_ORDER[currentDifficultyIndex]);
+    } else if (currentDifficultyIndex < LEVEL_ORDER.length - 1) {
+      const nextIdx = currentDifficultyIndex + 1;
+      setCurrentDifficultyIndex(nextIdx);
+      startGame(LEVEL_ORDER[nextIdx]);
+    } else {
+      onExit();
+    }
+  };
+
+  useEffect(() => {
+    const firstLevel = GARDEN_LEVELS.find((l) => l.difficulty === 'easy');
+    if (firstLevel) prepareLevel(firstLevel);
+  }, []);
 
   const refreshTargetRect = useCallback(() => {
     if (!targetRef.current) return;
@@ -1477,12 +1421,14 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
   const goNextLevel = useCallback(() => {
     const nextLevelIndex = levelIndex + 1;
     if (nextLevelIndex >= activeLevels.length) {
-      setScreen('win');
+      const s = wrongPicks <= 1 ? 3 : wrongPicks <= 4 ? 2 : 1;
+      setPopupStars(s);
+      setShowPopup(true);
       return;
     }
     setLevelIndex(nextLevelIndex);
     prepareLevel(activeLevels[nextLevelIndex]);
-  }, [activeLevels, levelIndex, playSound, prepareLevel]);
+  }, [activeLevels, levelIndex, wrongPicks, prepareLevel]);
 
   const registerCorrectPick = useCallback((itemId) => {
     if (!currentLevel || !currentMeta) return;
@@ -1554,69 +1500,6 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
     return 1;
   };
 
-  if (screen === 'level') {
-    const LEVEL_UI = {
-      easy: { emoji: '🌱', badge: '3 màn', board: 'Nhiệm vụ 3 món', meter: 1 },
-      medium: { emoji: '🌿', badge: '4 màn', board: 'Nhiệm vụ 4 món', meter: 2 },
-      hard: { emoji: '🌳', badge: '3 màn', board: 'Nhiệm vụ 5 món', meter: 3 },
-    };
-    const LEVEL_GRADIENTS = {
-      easy: ['#43C6AC', '#2BC0E4'],
-      medium: ['#56CCF2', '#2F80ED'],
-      hard: ['#11998E', '#38EF7D'],
-    };
-
-    return (
-      <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
-          </AnimatedPressable>
-          <Text style={styles.headerTitle}>🌾 Vườn Thu Hoạch</Text>
-          <View style={{ width: 70 }} />
-        </View>
-
-        <View style={styles.kidSelectIntroCard}>
-          <Text style={styles.kidSelectIntroTitle}>Chọn vườn để bắt đầu</Text>
-          <Text style={styles.kidSelectIntroSub}>Bé làm lần lượt 10 màn: Thu hoạch, Cho ăn, Tưới nước</Text>
-        </View>
-
-        <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
-          {Object.entries(levels).map(([key, level]) => {
-            const lv = LEVEL_UI[key];
-            return (
-              <AnimatedPressable key={key} onPress={() => { playSound('levelSelect'); startGame(key); }}>
-                <LinearGradient colors={LEVEL_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidLevelCard}>
-                  <View style={styles.kidLevelTopRow}>
-                    <Text style={styles.kidLevelEmoji}>{lv.emoji}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.kidLevelName}>{level.name}</Text>
-                    </View>
-                    <Text style={styles.kidLevelArrow}>▶</Text>
-                  </View>
-                  <View style={styles.levelVisualRow}>
-                    <View style={styles.levelMiniBadge}>
-                      <Text style={styles.levelMiniBadgeText}>{lv.badge}</Text>
-                    </View>
-                    <View style={styles.levelMiniBadge}>
-                      <Text style={styles.levelMiniBadgeText}>{lv.board}</Text>
-                    </View>
-                    <View style={styles.levelDotsRow}>
-                      {[0, 1, 2].map((i) => (
-                        <View key={i} style={[styles.levelDot, i < lv.meter && styles.levelDotActive]} />
-                      ))}
-                    </View>
-                  </View>
-                </LinearGradient>
-              </AnimatedPressable>
-            );
-          })}
-        </ScrollView>
-      </LinearGradient>
-    );
-  }
-
   if (screen === 'play' && currentLevel && currentMeta) {
     const finishedCount = playItems.filter((item) => item.kind === 'target' && item.done).length;
     const taskLeft = Math.max(0, currentLevel.targetCount - finishedCount);
@@ -1627,11 +1510,11 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
       <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('level'); }}>
+          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
             <Text style={styles.backButtonText}>◀ Về</Text>
           </AnimatedPressable>
           <View style={styles.statPill}>
-            <Text style={styles.statPillText}>Màn {currentLevel.id}/10</Text>
+            <Text style={styles.statPillText}>Màn {currentLevel.id}</Text>
           </View>
         </View>
 
@@ -1725,20 +1608,16 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
             </View>
           )}
         </View>
+        <RewardPopup
+          visible={showPopup}
+          stars={popupStars}
+          levelNum={currentDifficultyIndex + 1}
+          totalLevels={3}
+          onContinue={handleContinue}
+          onExit={() => { setShowPopup(false); onExit(); }}
+          playSound={playSound}
+        />
       </LinearGradient>
-    );
-  }
-
-  if (screen === 'win') {
-    return (
-      <WinScreen
-        title="Bé chăm vườn giỏi!"
-        subtitle={`Hoàn thành ${activeLevels.length} màn ở mức ${levels[selectedDifficulty]?.name || 'đã chọn'}`}
-        stars={getStars()}
-        onPlayAgain={() => startGame(selectedDifficulty)}
-        onExit={onExit}
-        playSound={playSound}
-      />
     );
   }
   return null;
@@ -1760,6 +1639,9 @@ const PuzzleGame = ({ playSound, onExit }) => {
   const [roundData, setRoundData] = useState(null);
   const [wrongPicks, setWrongPicks] = useState(0);
   const [selectedWrongOption, setSelectedWrongOption] = useState(null);
+  const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupStars, setPopupStars] = useState(0);
 
   const generateRound = useCallback((themeKey, levelKey) => {
     const themeItems = themes[themeKey].items;
@@ -1792,15 +1674,30 @@ const PuzzleGame = ({ playSound, onExit }) => {
     setSelectedTheme(themeKey);
     setSelectedLevel(levelKey);
     setWrongPicks(0);
+    setCurrentLevelIndex(LEVEL_ORDER.indexOf(levelKey));
+    setShowPopup(false);
     generateRound(themeKey, levelKey);
     setScreen('play');
+  };
+
+  const handleContinue = () => {
+    setShowPopup(false);
+    if (popupStars <= 1) {
+      startGame(selectedTheme, LEVEL_ORDER[currentLevelIndex]);
+    } else if (currentLevelIndex < LEVEL_ORDER.length - 1) {
+      startGame(selectedTheme, LEVEL_ORDER[currentLevelIndex + 1]);
+    } else {
+      onExit();
+    }
   };
 
   const handlePickOption = (value) => {
     if (!roundData) return;
     if (value === roundData.answer) {
       playSound('match');
-      setScreen('win');
+      const s = wrongPicks === 0 ? 3 : wrongPicks <= 2 ? 2 : 1;
+      setPopupStars(s);
+      setShowPopup(true);
       return;
     }
     playSound('wrong');
@@ -1835,7 +1732,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
         <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
           {Object.entries(themes).map(([key, theme]) => (
             <AnimatedPressable key={key}
-              onPress={() => { playSound('themeSelect'); setSelectedTheme(key); setScreen('level'); }}>
+              onPress={() => { playSound('themeSelect'); startGame(key, 'easy'); }}>
               <LinearGradient colors={THEME_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
                 <View style={styles.kidThemeEmojiWrap}>
                   <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
@@ -1852,69 +1749,6 @@ const PuzzleGame = ({ playSound, onExit }) => {
     );
   }
 
-  if (screen === 'level') {
-    const COUNT_LEVEL_UI = {
-      easy: { emoji: '1️⃣', badge: '3 đáp án', board: 'Số nhỏ', meter: 1 },
-      medium: { emoji: '2️⃣', badge: '3 đáp án', board: 'Số vừa', meter: 2 },
-      hard: { emoji: '3️⃣', badge: '3 đáp án', board: 'Số lớn', meter: 3 },
-    };
-    const COUNT_LEVEL_GRADIENTS = {
-      easy: ['#43C6AC', '#2BC0E4'],
-      medium: ['#FDC830', '#F37335'],
-      hard: ['#7F53AC', '#647DEE'],
-    };
-
-    return (
-      <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
-          </AnimatedPressable>
-          <Text style={styles.headerTitle}>🎯 Chọn độ khó</Text>
-          <View style={{ width: 70 }} />
-        </View>
-
-        <View style={styles.kidSelectIntroCard}>
-          <Text style={styles.kidSelectIntroTitle}>Độ khó bài đếm</Text>
-          <Text style={styles.kidSelectIntroSub}>Nhìn hình rồi chọn kết quả đúng</Text>
-        </View>
-
-        <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
-          {Object.entries(levels).map(([key, level]) => {
-            const lv = COUNT_LEVEL_UI[key];
-            return (
-              <AnimatedPressable key={key} onPress={() => { playSound('levelSelect'); startGame(selectedTheme, key); }}>
-                <LinearGradient colors={COUNT_LEVEL_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidLevelCard}>
-                  <View style={styles.kidLevelTopRow}>
-                    <Text style={styles.kidLevelEmoji}>{lv.emoji}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.kidLevelName}>{level.name}</Text>
-                    </View>
-                    <Text style={styles.kidLevelArrow}>▶</Text>
-                  </View>
-                  <View style={styles.levelVisualRow}>
-                    <View style={styles.levelMiniBadge}>
-                      <Text style={styles.levelMiniBadgeText}>{lv.badge}</Text>
-                    </View>
-                    <View style={styles.levelMiniBadge}>
-                      <Text style={styles.levelMiniBadgeText}>{lv.board}</Text>
-                    </View>
-                    <View style={styles.levelDotsRow}>
-                      {[0, 1, 2].map((i) => (
-                        <View key={i} style={[styles.levelDot, i < lv.meter && styles.levelDotActive]} />
-                      ))}
-                    </View>
-                  </View>
-                </LinearGradient>
-              </AnimatedPressable>
-            );
-          })}
-        </ScrollView>
-      </LinearGradient>
-    );
-  }
-
   if (screen === 'play' && roundData) {
     const countRowA = Array.from({ length: roundData.firstCount });
     const countRowB = Array.from({ length: roundData.secondCount });
@@ -1924,7 +1758,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
       <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('level'); }}>
+          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
             <Text style={styles.backButtonText}>◀ Về</Text>
           </AnimatedPressable>
           <View style={{ flex: 1 }} />
@@ -1973,20 +1807,16 @@ const PuzzleGame = ({ playSound, onExit }) => {
             </View>
           </View>
         </View>
+        <RewardPopup
+          visible={showPopup}
+          stars={popupStars}
+          levelNum={currentLevelIndex + 1}
+          totalLevels={3}
+          onContinue={handleContinue}
+          onExit={() => { setShowPopup(false); onExit(); }}
+          playSound={playSound}
+        />
       </LinearGradient>
-    );
-  }
-
-  if (screen === 'win') {
-    return (
-      <WinScreen
-        title="Giỏi đếm số!"
-        subtitle={`${roundData.firstCount} + ${roundData.secondCount} = ${roundData.answer}`}
-        stars={getStars()}
-        onPlayAgain={() => startGame(selectedTheme, selectedLevel)}
-        onExit={onExit}
-        playSound={playSound}
-      />
     );
   }
   return null;
@@ -2268,6 +2098,22 @@ const styles = StyleSheet.create({
   statPillText: { fontSize: 14, fontWeight: '800', color: '#FF6B35' },
   headerTitle: { color: 'white', fontSize: 20, fontWeight: '900',
     textShadowColor: 'rgba(0,0,0,0.2)', textShadowRadius: 3 },
+  // ── Reward popup ──
+  popupOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',
+  },
+  popupCard: {
+    backgroundColor: '#FFF', borderRadius: 28, padding: 28, width: '84%', alignItems: 'center',
+    elevation: 20, shadowColor: '#000', shadowOpacity: 0.3, shadowOffset: { width: 0, height: 8 }, shadowRadius: 20,
+  },
+  popupCloseBtn: {
+    position: 'absolute', top: 14, right: 14, width: 34, height: 34, borderRadius: 17,
+    backgroundColor: '#FFE5E5', justifyContent: 'center', alignItems: 'center', zIndex: 10,
+  },
+  popupCloseBtnText: { fontSize: 16, color: '#E53935', fontWeight: '700' },
+  popupPraiseText: { fontSize: 26, fontWeight: '900', color: '#333', marginTop: 8, textAlign: 'center' },
+  popupLevelText: { fontSize: 14, color: '#888', marginBottom: 4 },
+
   // ── Win screen ──
   winCard: {
     backgroundColor: 'rgba(255,255,255,0.97)', borderRadius: 32, padding: 28,
