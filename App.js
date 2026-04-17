@@ -32,7 +32,7 @@ const soundAssets = {
   wrong:        require('./assets/sounds/wrong.mp3'),
   pick:         require('./assets/sounds/pick.mp3'),
   place:        require('./assets/sounds/place.mp3'),
-  win:          require('./assets/sounds/win.mp3'),
+  win:          require('./assets/sounds/win-fantasy.wav'),
   navigate:     require('./assets/sounds/navigate.mp3'),
   themeSelect:  require('./assets/sounds/themeSelect.mp3'),
   levelSelect:  require('./assets/sounds/levelSelect.mp3'),
@@ -119,13 +119,13 @@ const SOUND_VOLUMES = {
   wrong: 0.45,
   pick: 0.42,
   place: 0.5,
-  win: 0.65,
+  win: 0.5,
   navigate: 0.38,
   themeSelect: 0.45,
   levelSelect: 0.48,
-  star1: 0.55,
-  star2: 0.6,
-  star3: 0.65,
+  star1: 0.35,
+  star2: 0.38,
+  star3: 0.42,
   combo: 0.6,
 };
 
@@ -504,6 +504,8 @@ const WinScreen = ({ title, subtitle, stars, onPlayAgain, onExit, playSound }) =
   const confettiAnims = useRef(
     Array.from({ length: 22 }, () => new Animated.Value(0))
   ).current;
+  const celebrationStoppedRef = useRef(false);
+  const timeoutIdsRef = useRef([]);
 
   const confettiData = useMemo(() =>
     confettiAnims.map((_, i) => ({
@@ -512,11 +514,32 @@ const WinScreen = ({ title, subtitle, stars, onPlayAgain, onExit, playSound }) =
       size: 16 + Math.floor(Math.random() * 16),
     })), []);
 
+  const stopCelebration = useCallback(() => {
+    celebrationStoppedRef.current = true;
+    timeoutIdsRef.current.forEach((id) => clearTimeout(id));
+    timeoutIdsRef.current = [];
+    confettiAnims.forEach((anim) => {
+      anim.stopAnimation();
+      anim.setValue(0);
+    });
+  }, [confettiAnims]);
+
+  const schedule = useCallback((delayMs, callback) => {
+    const id = setTimeout(() => {
+      if (!celebrationStoppedRef.current) callback();
+    }, delayMs);
+    timeoutIdsRef.current.push(id);
+  }, []);
+
   useEffect(() => {
-    // Sequential stars
+    celebrationStoppedRef.current = false;
+
+    // Win + stars run once.
+    starScales.forEach((anim) => anim.setValue(0));
+    schedule(120, () => playSound('win'));
     [0, 1, 2].forEach((i) => {
       if (i < stars) {
-        setTimeout(() => {
+        schedule(300 + i * 320, () => {
           playSound(`star${i + 1}`);
           Animated.spring(starScales[i], {
             toValue: 1,
@@ -524,19 +547,35 @@ const WinScreen = ({ title, subtitle, stars, onPlayAgain, onExit, playSound }) =
             bounciness: 20,
             speed: 16,
           }).start();
-        }, 300 + i * 320);
+        });
       }
     });
 
-    // Confetti burst
-    setTimeout(() => {
-      Animated.stagger(45,
-        confettiAnims.map(a =>
+    // Only confetti keeps looping (manual loop for better mobile reliability).
+    const runConfettiBurst = () => {
+      if (celebrationStoppedRef.current) return;
+      confettiAnims.forEach((anim) => {
+        anim.stopAnimation();
+        anim.setValue(0);
+      });
+      Animated.stagger(
+        45,
+        confettiAnims.map((a) =>
           Animated.timing(a, { toValue: 1, duration: 1400, useNativeDriver: true })
         )
-      ).start();
-    }, 200);
-  }, []);
+      ).start(() => {
+        if (celebrationStoppedRef.current) return;
+        const loopTimeout = setTimeout(runConfettiBurst, 260);
+        timeoutIdsRef.current.push(loopTimeout);
+      });
+    };
+    const firstBurstTimeout = setTimeout(runConfettiBurst, 160);
+    timeoutIdsRef.current.push(firstBurstTimeout);
+
+    return () => {
+      stopCelebration();
+    };
+  }, [confettiAnims, playSound, schedule, starScales, stars, stopCelebration]);
 
   return (
     <LinearGradient colors={['#FFECD2', '#FCB69F']} style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
@@ -546,7 +585,6 @@ const WinScreen = ({ title, subtitle, stars, onPlayAgain, onExit, playSound }) =
       ))}
 
       <View style={styles.winCard}>
-        <Text style={{ fontSize: 76 }}>🎉</Text>
         <Text style={[styles.winTitle]}>{title}</Text>
 
         {/* Stars */}
@@ -560,25 +598,15 @@ const WinScreen = ({ title, subtitle, stars, onPlayAgain, onExit, playSound }) =
 
         <Text style={styles.winSubtitle}>{subtitle}</Text>
 
-        <AnimatedPressable onPress={() => { playSound('tap'); onPlayAgain(); }} style={{ width: '100%', marginTop: 18 }}>
+        <AnimatedPressable onPress={() => { stopCelebration(); playSound('tap'); onPlayAgain(); }} style={{ width: '100%', marginTop: 18 }}>
           <LinearGradient colors={['#FF9A56','#FF6B35']} style={styles.winButton}>
-            <View style={styles.winButtonInner}>
-              <View style={styles.winButtonIconBubble}>
-                <Text style={styles.winButtonIcon}>🔄</Text>
-              </View>
-              <Text style={styles.winButtonText}>Chơi lại</Text>
-            </View>
+            <Text style={styles.winButtonText}>Chơi lại</Text>
           </LinearGradient>
         </AnimatedPressable>
 
-        <AnimatedPressable onPress={() => { playSound('navigate'); onExit(); }} style={{ width: '100%', marginTop: 14 }}>
+        <AnimatedPressable onPress={() => { stopCelebration(); playSound('tap'); onExit(); }} style={{ width: '100%', marginTop: 14 }}>
           <LinearGradient colors={['#667EEA','#764BA2']} style={styles.winButton}>
-            <View style={styles.winButtonInner}>
-              <View style={styles.winButtonIconBubble}>
-                <Text style={styles.winButtonIcon}>🏠</Text>
-              </View>
-              <Text style={styles.winButtonText}>Về trang chính</Text>
-            </View>
+            <Text style={styles.winButtonText}>Về trang chính</Text>
           </LinearGradient>
         </AnimatedPressable>
       </View>
@@ -730,7 +758,7 @@ const MemoryGame = ({ playSound, onExit }) => {
       if (moves <= pairs * 1.5) s = 3;
       else if (moves <= pairs * 2) s = 2;
       setStars(s);
-      setTimeout(() => { playSound('win'); setScreen('win'); }, 500);
+      setTimeout(() => { setScreen('win'); }, 500);
     }
   }, [matched]);
 
@@ -1059,7 +1087,6 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
       const goal = levels[selectedLevel].roundsToWin;
       if (nextRound > goal) {
         setTimeout(() => {
-          playSound('win');
           setScreen('win');
           setIsCorrectCelebrating(false);
           setSelectedCorrectId(null);
@@ -1214,25 +1241,14 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
   return null;
 };
 
-// --- Puzzle: screen coords → slot index ---
-function puzzleScreenToSlot(absX, absY, g) {
-  if (!g) return null;
-  const { wx, wy, width, height, padding, gap, slotSize, rows, cols } = g;
-  const lx = absX - wx - padding;
-  const ly = absY - wy - padding;
-  const innerW = width - 2 * padding;
-  const innerH = height - 2 * padding;
-  const margin = 48;
-  if (lx < -margin || ly < -margin || lx > innerW + margin || ly > innerH + margin) return null;
-  const cx = Math.max(0, Math.min(innerW - 1e-6, lx));
-  const cy = Math.max(0, Math.min(innerH - 1e-6, ly));
-  const col = Math.min(cols - 1, Math.floor(cx / (slotSize + gap)));
-  const row = Math.min(rows - 1, Math.floor(cy / (slotSize + gap)));
-  return row * cols + col;
-}
-
-const PuzzleDraggablePiece = React.memo(function PuzzleDraggablePiece({
-  pieceIndex, trayPieceSize, renderPiece, isDragging, disabled, onDragStart, onDropAtScreen,
+const GardenDraggableItem = React.memo(function GardenDraggableItem({
+  item,
+  disabled,
+  isDone,
+  isWrong,
+  wrongMarkOpacity,
+  onTap,
+  onDropAtScreen,
 }) {
   const tx = useRef(new Animated.Value(0)).current;
   const ty = useRef(new Animated.Value(0)).current;
@@ -1242,41 +1258,500 @@ const PuzzleDraggablePiece = React.memo(function PuzzleDraggablePiece({
     [tx, ty]
   );
 
+  const resetPosition = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(tx, { toValue: 0, useNativeDriver: false, bounciness: 8, speed: 18 }),
+      Animated.spring(ty, { toValue: 0, useNativeDriver: false, bounciness: 8, speed: 18 }),
+    ]).start();
+  }, [tx, ty]);
+
   const handleStateChange = useCallback((e) => {
     const { state, oldState, absoluteX, absoluteY } = e.nativeEvent;
-    if (state === State.BEGAN) onDragStart(pieceIndex);
     if (oldState === State.ACTIVE && (state === State.END || state === State.CANCELLED)) {
-      onDropAtScreen(pieceIndex, absoluteX, absoluteY);
-      Animated.parallel([
-        Animated.spring(tx, { toValue: 0, useNativeDriver: false, bounciness: 6, speed: 18 }),
-        Animated.spring(ty, { toValue: 0, useNativeDriver: false, bounciness: 6, speed: 18 }),
-      ]).start();
+      onDropAtScreen(item.id, absoluteX, absoluteY);
+      resetPosition();
     }
-  }, [pieceIndex, onDragStart, onDropAtScreen, tx, ty]);
+  }, [item.id, onDropAtScreen, resetPosition]);
+
+  const handleTap = useCallback(() => {
+    onTap(item.id);
+    resetPosition();
+  }, [item.id, onTap, resetPosition]);
 
   return (
     <PanGestureHandler enabled={!disabled} onGestureEvent={onGestureEvent} onHandlerStateChange={handleStateChange}>
       <Animated.View style={[
-        styles.puzzlePieceDraggableWrap,
+        styles.gardenDragWrap,
         { transform: [{ translateX: tx }, { translateY: ty }],
-          zIndex: isDragging ? 50 : 2,
-          elevation: isDragging ? 14 : 3,
           opacity: disabled ? 0.65 : 1 }
       ]}>
-        {renderPiece(pieceIndex, trayPieceSize, isDragging)}
+        <TouchableOpacity activeOpacity={0.9} onPress={handleTap} disabled={disabled}>
+          <LinearGradient colors={isDone ? ['#D9F7DF', '#C8EFD1'] : ['#FFFFFF', '#F4FFF7']} style={styles.gardenDragItem}>
+            <Text style={styles.gardenDragEmoji}>{item.emoji}</Text>
+            {isDone && (
+              <View style={styles.gardenCheckBadge}>
+                <Text style={styles.gardenCheckBadgeText}>✓</Text>
+              </View>
+            )}
+            {isWrong && (
+              <Animated.View style={[styles.gardenWrongMark, { opacity: wrongMarkOpacity }]}>
+                <Text style={styles.gardenWrongMarkText}>✕</Text>
+              </Animated.View>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
       </Animated.View>
     </PanGestureHandler>
   );
 });
 
 // ============================================
-// GAME 3: COUNTING QUIZ
+// GAME 3: GARDEN HARVEST
+// ============================================
+const GARDEN_TASK_TYPE = {
+  HARVEST: 'harvest',
+  FEED: 'feed',
+  WATER: 'water',
+};
+
+const GARDEN_TASK_META = {
+  [GARDEN_TASK_TYPE.HARVEST]: {
+    id: GARDEN_TASK_TYPE.HARVEST,
+    title: 'Thu hoạch',
+    prompt: 'Chạm để hái đúng nông sản',
+    actionHint: 'Chạm vào đồ đúng',
+    icon: '🧺',
+    targetEmoji: '🍎',
+    targetName: 'Quả táo',
+    distractorEmoji: '🍄',
+    targetLabel: 'Giỏ thu hoạch',
+    successToast: 'Giỏ đầy rồi!',
+    interaction: 'tap',
+  },
+  [GARDEN_TASK_TYPE.FEED]: {
+    id: GARDEN_TASK_TYPE.FEED,
+    title: 'Cho ăn',
+    prompt: 'Kéo hoặc chạm thức ăn cho thú',
+    actionHint: 'Kéo thức ăn vào đúng con vật',
+    icon: '🐰',
+    targetEmoji: '🥕',
+    targetName: 'Củ cà rốt',
+    distractorEmoji: '🍋',
+    targetLabel: 'Bạn thỏ đang đói',
+    successToast: 'Bạn thỏ no rồi!',
+    interaction: 'drag',
+  },
+  [GARDEN_TASK_TYPE.WATER]: {
+    id: GARDEN_TASK_TYPE.WATER,
+    title: 'Tưới nước',
+    prompt: 'Kéo hoặc chạm giọt nước vào hoa',
+    actionHint: 'Kéo giọt nước vào luống hoa',
+    icon: '🌼',
+    targetEmoji: '💧',
+    targetName: 'Giọt nước',
+    distractorEmoji: '🪨',
+    targetLabel: 'Luống hoa',
+    successToast: 'Hoa nở đẹp quá!',
+    interaction: 'drag',
+  },
+};
+
+const GARDEN_LEVELS = [
+  { id: 1, difficulty: 'easy', taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 3 },
+  { id: 2, difficulty: 'easy', taskType: GARDEN_TASK_TYPE.FEED, targetCount: 3 },
+  { id: 3, difficulty: 'easy', taskType: GARDEN_TASK_TYPE.WATER, targetCount: 3 },
+  { id: 4, difficulty: 'medium', taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 4 },
+  { id: 5, difficulty: 'medium', taskType: GARDEN_TASK_TYPE.FEED, targetCount: 4 },
+  { id: 6, difficulty: 'medium', taskType: GARDEN_TASK_TYPE.WATER, targetCount: 4 },
+  { id: 7, difficulty: 'medium', taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 5 },
+  { id: 8, difficulty: 'hard', taskType: GARDEN_TASK_TYPE.FEED, targetCount: 5 },
+  { id: 9, difficulty: 'hard', taskType: GARDEN_TASK_TYPE.WATER, targetCount: 5 },
+  { id: 10, difficulty: 'hard', taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 5 },
+];
+
+const GardenHarvestGame = ({ playSound, onExit }) => {
+  const levels = {
+    easy: { name: 'Dễ', meter: 1 },
+    medium: { name: 'Vừa', meter: 2 },
+    hard: { name: 'Khó', meter: 3 },
+  };
+
+  const [screen, setScreen] = useState('level');
+  const [selectedDifficulty, setSelectedDifficulty] = useState(null);
+  const [activeLevels, setActiveLevels] = useState([]);
+  const [levelIndex, setLevelIndex] = useState(0);
+  const [playItems, setPlayItems] = useState([]);
+  const [taskProgress, setTaskProgress] = useState(0);
+  const [totalCorrect, setTotalCorrect] = useState(0);
+  const [wrongPicks, setWrongPicks] = useState(0);
+  const [hintVisible, setHintVisible] = useState(false);
+  const [selectedWrongItem, setSelectedWrongItem] = useState(null);
+  const [successToast, setSuccessToast] = useState('');
+  const [targetRect, setTargetRect] = useState(null);
+  const targetRef = useRef(null);
+  const wrongMarkOpacity = useRef(new Animated.Value(0)).current;
+
+  const currentLevel = activeLevels[levelIndex] || null;
+  const currentMeta = currentLevel ? GARDEN_TASK_META[currentLevel.taskType] : null;
+
+  const shuffled = (items) => [...items].sort(() => Math.random() - 0.5);
+
+  const buildLevelItems = useCallback((level) => {
+    if (!level) return [];
+    const meta = GARDEN_TASK_META[level.taskType];
+    const items = [];
+    for (let i = 0; i < level.targetCount; i += 1) {
+      items.push({
+        id: `target-${level.id}-${i}`,
+        kind: 'target',
+        emoji: meta.targetEmoji,
+        done: false,
+      });
+    }
+
+    const distractorCount = level.targetCount >= 5 ? 2 : 1;
+    for (let i = 0; i < distractorCount; i += 1) {
+      items.push({
+        id: `wrong-${level.id}-${i}`,
+        kind: 'wrong',
+        emoji: meta.distractorEmoji,
+        done: false,
+      });
+    }
+    return shuffled(items);
+  }, []);
+
+  const prepareLevel = useCallback((level) => {
+    setPlayItems(buildLevelItems(level));
+    setTaskProgress(0);
+    setHintVisible(false);
+    setSelectedWrongItem(null);
+    setSuccessToast('');
+    setTargetRect(null);
+    wrongMarkOpacity.setValue(0);
+  }, [buildLevelItems]);
+
+  const startGame = (difficultyKey) => {
+    const filteredLevels = GARDEN_LEVELS.filter((level) => level.difficulty === difficultyKey);
+    if (!filteredLevels.length) return;
+    setSelectedDifficulty(difficultyKey);
+    setActiveLevels(filteredLevels);
+    setLevelIndex(0);
+    prepareLevel(filteredLevels[0]);
+    setTotalCorrect(0);
+    setWrongPicks(0);
+    setScreen('play');
+  };
+
+  const refreshTargetRect = useCallback(() => {
+    if (!targetRef.current) return;
+    targetRef.current.measureInWindow((x, y, width, height) => {
+      setTargetRect({ x, y, width, height });
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (screen !== 'play' || currentMeta?.interaction !== 'drag') return;
+    const timeout = setTimeout(refreshTargetRect, 120);
+    return () => clearTimeout(timeout);
+  }, [screen, levelIndex, currentMeta, refreshTargetRect]);
+
+  const registerWrongPick = useCallback((itemId) => {
+    playSound('wrong');
+    setWrongPicks((value) => value + 1);
+    setSelectedWrongItem(itemId);
+    wrongMarkOpacity.setValue(1);
+    Animated.timing(wrongMarkOpacity, {
+      toValue: 0,
+      duration: 520,
+      useNativeDriver: true,
+    }).start(() => {
+      setSelectedWrongItem(null);
+    });
+    setHintVisible((value) => value || wrongPicks >= 1);
+    if (wrongPicks >= 1) {
+      setTimeout(() => setHintVisible(false), 1600);
+    }
+  }, [playSound, wrongMarkOpacity, wrongPicks]);
+
+  const goNextLevel = useCallback(() => {
+    const nextLevelIndex = levelIndex + 1;
+    if (nextLevelIndex >= activeLevels.length) {
+      setScreen('win');
+      return;
+    }
+    setLevelIndex(nextLevelIndex);
+    prepareLevel(activeLevels[nextLevelIndex]);
+  }, [activeLevels, levelIndex, playSound, prepareLevel]);
+
+  const registerCorrectPick = useCallback((itemId) => {
+    if (!currentLevel || !currentMeta) return;
+    playSound('match');
+    setPlayItems((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, done: true } : item))
+    );
+    setTaskProgress((prev) => {
+      const next = prev + 1;
+      if (next >= currentLevel.targetCount) {
+        setSuccessToast(currentMeta.successToast);
+        setTimeout(() => {
+          setSuccessToast('');
+          goNextLevel();
+        }, 780);
+      }
+      return next;
+    });
+    setTotalCorrect((value) => value + 1);
+  }, [currentLevel, currentMeta, goNextLevel, playSound]);
+
+  const handleHarvestTap = useCallback((itemId) => {
+    const item = playItems.find((entry) => entry.id === itemId);
+    if (!item || item.done) return;
+    if (item.kind === 'target') {
+      registerCorrectPick(itemId);
+      return;
+    }
+    registerWrongPick(itemId);
+  }, [playItems, registerCorrectPick, registerWrongPick]);
+
+  const isInsideTarget = useCallback((absX, absY) => {
+    if (!targetRect) return false;
+    return (
+      absX >= targetRect.x &&
+      absX <= targetRect.x + targetRect.width &&
+      absY >= targetRect.y &&
+      absY <= targetRect.y + targetRect.height
+    );
+  }, [targetRect]);
+
+  const handleDropAtScreen = useCallback((itemId, absX, absY) => {
+    const item = playItems.find((entry) => entry.id === itemId);
+    if (!item || item.done) return;
+    if (!isInsideTarget(absX, absY)) {
+      registerWrongPick(itemId);
+      return;
+    }
+    if (item.kind === 'target') {
+      registerCorrectPick(itemId);
+      return;
+    }
+    registerWrongPick(itemId);
+  }, [isInsideTarget, playItems, registerCorrectPick, registerWrongPick]);
+
+  const handleDragTap = useCallback((itemId) => {
+    const item = playItems.find((entry) => entry.id === itemId);
+    if (!item || item.done) return;
+    if (item.kind === 'target') {
+      registerCorrectPick(itemId);
+      return;
+    }
+    registerWrongPick(itemId);
+  }, [playItems, registerCorrectPick, registerWrongPick]);
+
+  const getStars = () => {
+    if (wrongPicks <= 1) return 3;
+    if (wrongPicks <= 4) return 2;
+    return 1;
+  };
+
+  if (screen === 'level') {
+    const LEVEL_UI = {
+      easy: { emoji: '🌱', badge: '3 màn', board: 'Nhiệm vụ 3 món', meter: 1 },
+      medium: { emoji: '🌿', badge: '4 màn', board: 'Nhiệm vụ 4 món', meter: 2 },
+      hard: { emoji: '🌳', badge: '3 màn', board: 'Nhiệm vụ 5 món', meter: 3 },
+    };
+    const LEVEL_GRADIENTS = {
+      easy: ['#43C6AC', '#2BC0E4'],
+      medium: ['#56CCF2', '#2F80ED'],
+      hard: ['#11998E', '#38EF7D'],
+    };
+
+    return (
+      <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" />
+        <View style={[styles.header, { marginTop: 44 }]}>
+          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
+            <Text style={styles.backButtonText}>◀ Về</Text>
+          </AnimatedPressable>
+          <Text style={styles.headerTitle}>🌾 Vườn Thu Hoạch</Text>
+          <View style={{ width: 70 }} />
+        </View>
+
+        <View style={styles.kidSelectIntroCard}>
+          <Text style={styles.kidSelectIntroTitle}>Chọn vườn để bắt đầu</Text>
+          <Text style={styles.kidSelectIntroSub}>Bé làm lần lượt 10 màn: Thu hoạch, Cho ăn, Tưới nước</Text>
+        </View>
+
+        <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
+          {Object.entries(levels).map(([key, level]) => {
+            const lv = LEVEL_UI[key];
+            return (
+              <AnimatedPressable key={key} onPress={() => { playSound('levelSelect'); startGame(key); }}>
+                <LinearGradient colors={LEVEL_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidLevelCard}>
+                  <View style={styles.kidLevelTopRow}>
+                    <Text style={styles.kidLevelEmoji}>{lv.emoji}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.kidLevelName}>{level.name}</Text>
+                    </View>
+                    <Text style={styles.kidLevelArrow}>▶</Text>
+                  </View>
+                  <View style={styles.levelVisualRow}>
+                    <View style={styles.levelMiniBadge}>
+                      <Text style={styles.levelMiniBadgeText}>{lv.badge}</Text>
+                    </View>
+                    <View style={styles.levelMiniBadge}>
+                      <Text style={styles.levelMiniBadgeText}>{lv.board}</Text>
+                    </View>
+                    <View style={styles.levelDotsRow}>
+                      {[0, 1, 2].map((i) => (
+                        <View key={i} style={[styles.levelDot, i < lv.meter && styles.levelDotActive]} />
+                      ))}
+                    </View>
+                  </View>
+                </LinearGradient>
+              </AnimatedPressable>
+            );
+          })}
+        </ScrollView>
+      </LinearGradient>
+    );
+  }
+
+  if (screen === 'play' && currentLevel && currentMeta) {
+    const finishedCount = playItems.filter((item) => item.kind === 'target' && item.done).length;
+    const taskLeft = Math.max(0, currentLevel.targetCount - finishedCount);
+    const dragItems = playItems;
+    const isDragTask = currentMeta.interaction === 'drag';
+
+    return (
+      <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" />
+        <View style={[styles.header, { marginTop: 44 }]}>
+          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('level'); }}>
+            <Text style={styles.backButtonText}>◀ Về</Text>
+          </AnimatedPressable>
+          <View style={styles.statPill}>
+            <Text style={styles.statPillText}>Màn {currentLevel.id}/10</Text>
+          </View>
+        </View>
+
+        <View style={styles.gardenPlayWrap}>
+          <View style={styles.gardenMissionCard}>
+            <Text style={styles.gardenMissionTitle}>{currentMeta.title}</Text>
+            <Text style={styles.gardenMissionSub}>
+              Mục tiêu: Hoàn thành {currentLevel.targetCount} lượt - Còn {taskLeft}
+            </Text>
+            <View style={styles.gardenTargetPreviewCard}>
+              <Text style={styles.gardenTargetPreviewLabel}>Bé cần làm với:</Text>
+              <View style={styles.gardenTargetPreviewIconWrap}>
+                <Text style={styles.gardenTargetPreviewEmoji}>{currentMeta.targetEmoji}</Text>
+              </View>
+              <Text style={styles.gardenTargetPreviewName}>{currentMeta.targetName}</Text>
+            </View>
+            <Text style={styles.gardenMissionHint}>
+              {currentMeta.prompt}
+            </Text>
+            {hintVisible && (
+              <View style={styles.gardenHintBubble}>
+                <Text style={styles.gardenHintText}>Gợi ý: {currentMeta.actionHint}</Text>
+              </View>
+            )}
+            {successToast ? (
+              <View style={styles.gardenToast}>
+                <Text style={styles.gardenToastText}>{successToast}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {isDragTask ? (
+            <View style={styles.gardenDragTaskWrap}>
+              <View
+                ref={targetRef}
+                onLayout={refreshTargetRect}
+                style={styles.gardenDropZone}
+              >
+                <Text style={styles.gardenDropZoneIcon}>{currentMeta.icon}</Text>
+                <Text style={styles.gardenDropZoneLabel}>{currentMeta.targetLabel}</Text>
+                <Text style={styles.gardenDropZoneCounter}>
+                  {taskProgress}/{currentLevel.targetCount}
+                </Text>
+              </View>
+
+              <View style={styles.gardenDragTray}>
+                {dragItems.map((item) => (
+                  <GardenDraggableItem
+                    key={item.id}
+                    item={item}
+                    disabled={item.done}
+                    isDone={item.done}
+                    isWrong={selectedWrongItem === item.id}
+                    wrongMarkOpacity={wrongMarkOpacity}
+                    onTap={handleDragTap}
+                    onDropAtScreen={handleDropAtScreen}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : (
+            <View style={styles.gardenHarvestGrid}>
+              {playItems.map((item) => {
+                const isWrong = selectedWrongItem === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => handleHarvestTap(item.id)}
+                    disabled={item.done}
+                    activeOpacity={0.86}
+                  >
+                    <LinearGradient
+                      colors={isWrong ? ['#EF5350', '#E53935'] : item.done ? ['#D9F7DF', '#C8EFD1'] : ['#FFFFFF', '#F4FFF7']}
+                      style={styles.gardenHarvestItem}
+                    >
+                      <Text style={styles.gardenHarvestEmoji}>{item.emoji}</Text>
+                      {item.done && (
+                        <View style={styles.gardenCheckBadge}>
+                          <Text style={styles.gardenCheckBadgeText}>✓</Text>
+                        </View>
+                      )}
+                      {isWrong && (
+                        <Animated.View style={[styles.gardenWrongMark, { opacity: wrongMarkOpacity }]}>
+                          <Text style={styles.gardenWrongMarkText}>✕</Text>
+                        </Animated.View>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </LinearGradient>
+    );
+  }
+
+  if (screen === 'win') {
+    return (
+      <WinScreen
+        title="Bé chăm vườn giỏi!"
+        subtitle={`Hoàn thành ${activeLevels.length} màn ở mức ${levels[selectedDifficulty]?.name || 'đã chọn'}`}
+        stars={getStars()}
+        onPlayAgain={() => startGame(selectedDifficulty)}
+        onExit={onExit}
+        playSound={playSound}
+      />
+    );
+  }
+  return null;
+};
+
+// ============================================
+// RESTORED GAME: COUNTING QUIZ
 // ============================================
 const PuzzleGame = ({ playSound, onExit }) => {
   const levels = {
-    easy:   { name: 'Dễ', maxCount: 3, optionCount: 4 },
-    medium: { name: 'Vừa', maxCount: 5, optionCount: 4 },
-    hard:   { name: 'Khó', maxCount: 7, optionCount: 4 },
+    easy: { name: 'Dễ', maxCount: 3, optionCount: 3 },
+    medium: { name: 'Vừa', maxCount: 5, optionCount: 3 },
+    hard: { name: 'Khó', maxCount: 7, optionCount: 3 },
   };
 
   const [screen, setScreen] = useState('theme');
@@ -1379,14 +1854,14 @@ const PuzzleGame = ({ playSound, onExit }) => {
 
   if (screen === 'level') {
     const COUNT_LEVEL_UI = {
-      easy:   { emoji: '1️⃣', badge: '4 đáp án', board: 'Số nhỏ', meter: 1 },
-      medium: { emoji: '2️⃣', badge: '4 đáp án', board: 'Số vừa', meter: 2 },
-      hard:   { emoji: '3️⃣', badge: '4 đáp án', board: 'Số lớn', meter: 3 },
+      easy: { emoji: '1️⃣', badge: '3 đáp án', board: 'Số nhỏ', meter: 1 },
+      medium: { emoji: '2️⃣', badge: '3 đáp án', board: 'Số vừa', meter: 2 },
+      hard: { emoji: '3️⃣', badge: '3 đáp án', board: 'Số lớn', meter: 3 },
     };
     const COUNT_LEVEL_GRADIENTS = {
-      easy:   ['#43C6AC', '#2BC0E4'],
+      easy: ['#43C6AC', '#2BC0E4'],
       medium: ['#FDC830', '#F37335'],
-      hard:   ['#7F53AC', '#647DEE'],
+      hard: ['#7F53AC', '#647DEE'],
     };
 
     return (
@@ -1554,8 +2029,6 @@ export default function App() {
   }, []);
 
   const playSound = (type) => { soundManager.play(type); };
-  const playAnimalSound = async (source, options) => soundManager.playClip(source, 0.42, options);
-  const stopAnimalSound = async () => soundManager.stopClip();
   const toggleMusic = async () => {
     playSound('tap');
     const nextEnabled = !musicEnabled;
@@ -1565,17 +2038,11 @@ export default function App() {
 
   const handleGameSelect = async (game) => {
     playSound('tap');
-    // Animal listening game needs clear foreground audio, so force background music off.
-    if (game === 'finddiff' && musicEnabled) {
-      setMusicEnabled(false);
-      await soundManager.setBackgroundEnabled(false);
-    }
     setCurrentGame(game);
     setScreen('game');
   };
 
   const handleExit = () => {
-    playSound('navigate');
     setScreen('home');
   };
 
@@ -1592,7 +2059,8 @@ export default function App() {
   if (screen === 'game') {
     let gameScreen = null;
     if (currentGame === 'memory')   gameScreen = <MemoryGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
-    if (currentGame === 'finddiff') gameScreen = <AnimalSoundGame playSound={playSound} playAnimalSound={playAnimalSound} stopAnimalSound={stopAnimalSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
+    if (currentGame === 'puzzle')   gameScreen = <PuzzleGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
+    if (currentGame === 'garden')   gameScreen = <GardenHarvestGame  playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
     return (
       <View style={{ flex: 1 }}>
         {gameScreen}
@@ -1632,7 +2100,7 @@ export default function App() {
       <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Animated.Text style={{ fontSize: 88, marginTop: 24, marginBottom: 4, transform: [{ translateY: floatAnim }] }}>
-          🎮
+          🧸
         </Animated.Text>
         <Text style={[styles.title, { fontFamily: F }]}>Bé Học Vui</Text>
         <Text style={[styles.subtitle, { fontFamily: F7 }]}>Chạm vào trò bé muốn chơi 👇</Text>
@@ -1650,16 +2118,28 @@ export default function App() {
             </LinearGradient>
           </AnimatedPressable>
 
-          <AnimatedPressable onPress={() => handleGameSelect('finddiff')}>
-            <LinearGradient colors={['#B06FEA', '#8E44AD']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
-              <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🔊</Text></View>
+          <AnimatedPressable onPress={() => handleGameSelect('puzzle')}>
+            <LinearGradient colors={['#56D98A', '#2ECC71']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+              <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🧮</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.gameButtonText, { fontFamily: F }]}>Nghe Tiếng Thú</Text>
-                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>Nghe âm thanh, chọn đúng con vật</Text>
+                <Text style={[styles.gameButtonText, { fontFamily: F }]}>Đếm Hình</Text>
+                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>Nhìn hình, chọn kết quả</Text>
               </View>
               <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
             </LinearGradient>
           </AnimatedPressable>
+
+          <AnimatedPressable onPress={() => handleGameSelect('garden')}>
+            <LinearGradient colors={['#43C97A', '#2BA95E']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+              <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🌾</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.gameButtonText, { fontFamily: F }]}>Vườn Thu Hoạch</Text>
+                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>Chạm hoặc kéo thả để chăm vườn</Text>
+              </View>
+              <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
+            </LinearGradient>
+          </AnimatedPressable>
+
         </View>
 
         {/* Footer credit */}
@@ -1799,9 +2279,9 @@ const styles = StyleSheet.create({
   winSubtitle:  { fontSize: 16, color: '#666', textAlign: 'center', fontWeight: '700' },
   winButton: {
     borderRadius: 28,
-    minHeight: 58,
+    minHeight: 62,
     width: '100%',
-    paddingHorizontal: 16,
+    paddingHorizontal: 22,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
@@ -1810,29 +2290,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.23,
     shadowRadius: 7,
   },
-  winButtonInner: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  winButtonIconBubble: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.28)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  winButtonIcon: {
-    fontSize: 16,
-  },
   winButtonText: {
     color: 'white',
     fontSize: 22,
     fontWeight: '900',
     letterSpacing: 0.2,
+    textAlign: 'center',
+    width: '100%',
   },
   // ── Theme / Level select screens ──
   selectList: {
@@ -2169,6 +2633,226 @@ const styles = StyleSheet.create({
   cardMatched: { backgroundColor: '#C8E6C9' },
   hintText: {
     color: 'white', fontSize: 15, fontWeight: '700', marginBottom: 10, textAlign: 'center',
+  },
+  gardenPlayWrap: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 18,
+    justifyContent: 'center',
+  },
+  gardenMissionCard: {
+    marginTop: 4,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: 22,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#D8F5DE',
+  },
+  gardenMissionTitle: {
+    color: '#2E7D32',
+    fontSize: 28,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  gardenMissionSub: {
+    marginTop: 4,
+    color: '#3E6A43',
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  gardenMissionHint: {
+    marginTop: 6,
+    color: '#4D6650',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  gardenTargetPreviewCard: {
+    marginTop: 10,
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 260,
+    borderRadius: 18,
+    backgroundColor: '#F2FFF4',
+    borderWidth: 2,
+    borderColor: '#BEE8C8',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  gardenTargetPreviewLabel: {
+    color: '#3E6A43',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  gardenTargetPreviewIconWrap: {
+    marginTop: 6,
+    width: 88,
+    height: 88,
+    borderRadius: 20,
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#D6EEDB',
+  },
+  gardenTargetPreviewEmoji: {
+    fontSize: 62,
+    lineHeight: 66,
+  },
+  gardenTargetPreviewName: {
+    marginTop: 6,
+    color: '#2E7D32',
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  gardenHintBubble: {
+    marginTop: 10,
+    alignSelf: 'center',
+    backgroundColor: '#FFF6CF',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#F2D578',
+  },
+  gardenHintText: {
+    color: '#8E5C00',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  gardenToast: {
+    marginTop: 10,
+    alignSelf: 'center',
+    backgroundColor: '#D7F7DF',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#8CD8A1',
+  },
+  gardenToastText: {
+    color: '#1F7A34',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  gardenDragTaskWrap: {
+    marginTop: 14,
+    gap: 12,
+  },
+  gardenDropZone: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#76C98A',
+    minHeight: 182,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gardenDropZoneIcon: {
+    fontSize: 56,
+  },
+  gardenDropZoneLabel: {
+    marginTop: 8,
+    color: '#2F6140',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  gardenDropZoneCounter: {
+    marginTop: 5,
+    color: '#2E7D32',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  gardenDragTray: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 14,
+    paddingVertical: 10,
+  },
+  gardenDragWrap: {
+    borderRadius: 14,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
+    shadowRadius: 5,
+  },
+  gardenDragItem: {
+    width: 98,
+    height: 98,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  gardenDragEmoji: {
+    fontSize: 52,
+  },
+  gardenHarvestGrid: {
+    marginTop: 14,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  gardenHarvestItem: {
+    width: 104,
+    height: 104,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#D9F1DE',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 4,
+  },
+  gardenHarvestEmoji: {
+    fontSize: 56,
+  },
+  gardenCheckBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#2E7D32',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gardenCheckBadgeText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 18,
+  },
+  gardenWrongMark: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(229,57,53,0.25)',
+  },
+  gardenWrongMarkText: {
+    color: '#C62828',
+    fontSize: 52,
+    fontWeight: '900',
+    textShadowColor: 'rgba(255,255,255,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   countQuestionCard: {
     marginHorizontal: 16,
