@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { Audio } from 'expo-av';
 import { useFonts, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black } from '@expo-google-fonts/nunito';
+import { Ionicons } from '@expo/vector-icons';
 
 // ============ SHARED DATA ============
 const themes = {
@@ -23,6 +24,7 @@ const themes = {
     items: ['🚗', '🚕', '🚌', '🚑', '🚒', '🚜', '🚲', '🛵', '✈️', '🚢']
   }
 };
+const THEME_ORDER = ['animals', 'fruits', 'vehicles'];
 
 const soundAssets = {
   background:   require('./assets/sounds/background.mp3'),
@@ -482,7 +484,39 @@ const DiffCell = ({ emoji, index, isClickable, isFound, isWrong, onTap, cellSize
 
 // Confetti particle
 const CONFETTI_EMOJIS = ['⭐', '🌟', '✨', '🎉', '🎊', '💛', '🌈'];
-const LEVEL_ORDER = ['easy', 'medium', 'hard'];
+const LEVEL_TIERS = ['easy', 'medium', 'hard', 'expert', 'master'];
+const MAX_SUB_LEVELS = 3;
+const RELEASED_SUB_LEVELS = 2; // TODO: enable sub-level 3 after tuning.
+
+const makeLevelKey = (tier, subLevel) => `${tier}-${subLevel}`;
+const getReleasedLevelConfigs = (configs) =>
+  configs
+    .filter((level) => LEVEL_TIERS.includes(level.tier))
+    .filter((level) => level.subLevel >= 1 && level.subLevel <= MAX_SUB_LEVELS)
+    .filter((level) => level.subLevel <= RELEASED_SUB_LEVELS)
+    .sort((a, b) => LEVEL_TIERS.indexOf(a.tier) - LEVEL_TIERS.indexOf(b.tier) || a.subLevel - b.subLevel);
+
+const getTierLabel = (tier) => {
+  switch (tier) {
+    case 'easy': return 'Dễ';
+    case 'medium': return 'Vừa';
+    case 'hard': return 'Khó';
+    case 'expert': return 'Chuyên gia';
+    case 'master': return 'Bậc thầy';
+    default: return tier;
+  }
+};
+
+const getTierIcon = (tier) => {
+  switch (tier) {
+    case 'easy': return '🐣';
+    case 'medium': return '🐥';
+    case 'hard': return '🦊';
+    case 'expert': return '🚀';
+    case 'master': return '👑';
+    default: return '🎯';
+  }
+};
 const ConfettiParticle = ({ anim, x, emoji, size }) => {
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -340] });
   const opacity    = anim.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 0.9, 0] });
@@ -603,6 +637,31 @@ const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue, onExit
   );
 };
 
+const LevelProgressHeader = ({
+  tier,
+  levelNum,
+  totalLevels,
+}) => {
+  const pct = Math.max(0, Math.min(1, levelNum / Math.max(1, totalLevels)));
+  return (
+    <View style={styles.levelHeaderCard}>
+      <View style={styles.levelHeaderTopRow}>
+        <View style={styles.levelHeaderTierIconWrap}>
+          <Text style={styles.levelHeaderTierIcon}>{getTierIcon(tier)}</Text>
+        </View>
+        <View style={styles.levelHeaderValueWrap}>
+          <Text style={styles.levelHeaderValueMain}>{levelNum}/{totalLevels}</Text>
+        </View>
+      </View>
+      <View style={styles.levelHeaderBarTrack}>
+        <View style={[styles.levelHeaderBarFill, { width: `${Math.round(pct * 100)}%` }]}>
+          <View style={styles.levelHeaderProgressGlow} />
+        </View>
+      </View>
+    </View>
+  );
+};
+
 // ============================================
 // GAME 1: MEMORY MATCH
 // ============================================
@@ -623,26 +682,57 @@ const THEME_GRADIENTS = {
 
 // Level visual config
 const LEVEL_CONFIG = {
-  easy:   { color: '#43A047', bg: '#F1F8E9', label: '⭐',      desc: '4 ô · 2 cặp thẻ' },
-  medium: { color: '#FB8C00', bg: '#FFF8E1', label: '⭐⭐',    desc: '9 ô · 3 cặp thẻ' },
-  hard:   { color: '#E53935', bg: '#FFEBEE', label: '⭐⭐⭐',  desc: '8 ô · 4 cặp thẻ' },
+  easy: { color: '#43A047', bg: '#F1F8E9', label: '⭐', desc: 'Khởi động nhẹ nhàng' },
+  medium: { color: '#FB8C00', bg: '#FFF8E1', label: '⭐⭐', desc: 'Tăng số lượng và nhịp độ' },
+  hard: { color: '#E53935', bg: '#FFEBEE', label: '⭐⭐⭐', desc: 'Nhiều thẻ và ít sai sót' },
+  expert: { color: '#8E24AA', bg: '#F3E5F5', label: '⭐⭐⭐⭐', desc: 'Mật độ cao, phản xạ nhanh' },
+  master: { color: '#283593', bg: '#E8EAF6', label: '⭐⭐⭐⭐⭐', desc: 'Thử thách tối đa' },
 };
 
-const MemoryGame = ({ playSound, onExit }) => {
-  const levels = {
-    easy:   { name: 'Dễ',   pairs: 2, cols: 2 },
-    medium: { name: 'Vừa',  pairs: 3, cols: 3 },
-    hard:   { name: 'Khó',  pairs: 4, cols: 3 }
-  };
+const MEMORY_LEVELS = [
+  { key: makeLevelKey('easy', 1), tier: 'easy', subLevel: 1, pairs: 2, cols: 2 },
+  { key: makeLevelKey('easy', 2), tier: 'easy', subLevel: 2, pairs: 3, cols: 3 },
+  { key: makeLevelKey('easy', 3), tier: 'easy', subLevel: 3, pairs: 4, cols: 3 },
+  { key: makeLevelKey('medium', 1), tier: 'medium', subLevel: 1, pairs: 4, cols: 3 },
+  { key: makeLevelKey('medium', 2), tier: 'medium', subLevel: 2, pairs: 5, cols: 4 },
+  { key: makeLevelKey('medium', 3), tier: 'medium', subLevel: 3, pairs: 5, cols: 4 },
+  { key: makeLevelKey('hard', 1), tier: 'hard', subLevel: 1, pairs: 6, cols: 4 },
+  { key: makeLevelKey('hard', 2), tier: 'hard', subLevel: 2, pairs: 6, cols: 4 },
+  { key: makeLevelKey('hard', 3), tier: 'hard', subLevel: 3, pairs: 7, cols: 4 },
+  { key: makeLevelKey('expert', 1), tier: 'expert', subLevel: 1, pairs: 7, cols: 4 },
+  { key: makeLevelKey('expert', 2), tier: 'expert', subLevel: 2, pairs: 8, cols: 4 },
+  { key: makeLevelKey('expert', 3), tier: 'expert', subLevel: 3, pairs: 8, cols: 4 },
+  { key: makeLevelKey('master', 1), tier: 'master', subLevel: 1, pairs: 8, cols: 4 },
+  { key: makeLevelKey('master', 2), tier: 'master', subLevel: 2, pairs: 9, cols: 4 },
+  { key: makeLevelKey('master', 3), tier: 'master', subLevel: 3, pairs: 10, cols: 5 },
+];
 
+const PUZZLE_LEVELS = [
+  { key: makeLevelKey('easy', 1), tier: 'easy', subLevel: 1, maxCount: 3, optionCount: 3, mistakeBudget: 6, star2MaxWrong: 2 },
+  { key: makeLevelKey('easy', 2), tier: 'easy', subLevel: 2, maxCount: 4, optionCount: 3, mistakeBudget: 5, star2MaxWrong: 2 },
+  { key: makeLevelKey('easy', 3), tier: 'easy', subLevel: 3, maxCount: 4, optionCount: 4, mistakeBudget: 5, star2MaxWrong: 1 },
+  { key: makeLevelKey('medium', 1), tier: 'medium', subLevel: 1, maxCount: 5, optionCount: 4, mistakeBudget: 4, star2MaxWrong: 1 },
+  { key: makeLevelKey('medium', 2), tier: 'medium', subLevel: 2, maxCount: 6, optionCount: 4, mistakeBudget: 4, star2MaxWrong: 1 },
+  { key: makeLevelKey('medium', 3), tier: 'medium', subLevel: 3, maxCount: 6, optionCount: 5, mistakeBudget: 4, star2MaxWrong: 1 },
+  { key: makeLevelKey('hard', 1), tier: 'hard', subLevel: 1, maxCount: 7, optionCount: 5, mistakeBudget: 3, star2MaxWrong: 1 },
+  { key: makeLevelKey('hard', 2), tier: 'hard', subLevel: 2, maxCount: 8, optionCount: 5, mistakeBudget: 3, star2MaxWrong: 1 },
+  { key: makeLevelKey('hard', 3), tier: 'hard', subLevel: 3, maxCount: 8, optionCount: 6, mistakeBudget: 3, star2MaxWrong: 0 },
+  { key: makeLevelKey('expert', 1), tier: 'expert', subLevel: 1, maxCount: 9, optionCount: 6, mistakeBudget: 3, star2MaxWrong: 0 },
+  { key: makeLevelKey('expert', 2), tier: 'expert', subLevel: 2, maxCount: 10, optionCount: 6, mistakeBudget: 2, star2MaxWrong: 0 },
+  { key: makeLevelKey('expert', 3), tier: 'expert', subLevel: 3, maxCount: 10, optionCount: 7, mistakeBudget: 2, star2MaxWrong: 0 },
+  { key: makeLevelKey('master', 1), tier: 'master', subLevel: 1, maxCount: 11, optionCount: 7, mistakeBudget: 2, star2MaxWrong: 0 },
+  { key: makeLevelKey('master', 2), tier: 'master', subLevel: 2, maxCount: 12, optionCount: 7, mistakeBudget: 2, star2MaxWrong: 0 },
+  { key: makeLevelKey('master', 3), tier: 'master', subLevel: 3, maxCount: 12, optionCount: 8, mistakeBudget: 2, star2MaxWrong: 0 },
+];
+
+const MemoryGame = ({ playSound, onExit }) => {
+  const releasedLevels = useMemo(() => getReleasedLevelConfigs(MEMORY_LEVELS), []);
   const [screen, setScreen] = useState('theme');
   const [selectedTheme, setSelectedTheme] = useState(null);
-  const [selectedLevel, setSelectedLevel] = useState(null);
   const [cards, setCards] = useState([]);
   const [flipped, setFlipped] = useState([]);
   const [matched, setMatched] = useState([]);
   const [moves, setMoves] = useState(0);
-  const [stars, setStars] = useState(0);
   const [consecutiveMatches, setConsecutiveMatches] = useState(0);
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [hintCardIndex, setHintCardIndex] = useState(null);
@@ -651,25 +741,36 @@ const MemoryGame = ({ playSound, onExit }) => {
   const [showPopup, setShowPopup] = useState(false);
   const [popupStars, setPopupStars] = useState(0);
 
-  const startGame = (theme, level) => {
-    const items = themes[theme].items.slice(0, levels[level].pairs);
+  const currentLevel = releasedLevels[currentLevelIndex] || releasedLevels[0];
+
+  const startGame = (theme, levelIndex = 0) => {
+    const level = releasedLevels[levelIndex];
+    if (!theme || !level) return;
+    const items = themes[theme].items.slice(0, level.pairs);
     const deck = [...items, ...items]
       .map((item, i) => ({ id: i, value: item }))
       .sort(() => Math.random() - 0.5);
     setCards(deck);
-    setFlipped([]); setMatched([]); setMoves(0); setStars(0); setConsecutiveMatches(0); setWrongAttempts(0); setHintCardIndex(null); setGuidedAnchorIndex(null);
-    setSelectedTheme(theme); setSelectedLevel(level);
-    setCurrentLevelIndex(LEVEL_ORDER.indexOf(level));
+    setFlipped([]);
+    setMatched([]);
+    setMoves(0);
+    setConsecutiveMatches(0);
+    setWrongAttempts(0);
+    setHintCardIndex(null);
+    setGuidedAnchorIndex(null);
+    setSelectedTheme(theme);
+    setCurrentLevelIndex(levelIndex);
     setShowPopup(false);
     setScreen('play');
   };
 
   const handleContinue = () => {
     setShowPopup(false);
+    if (!selectedTheme) return;
     if (popupStars <= 1) {
-      startGame(selectedTheme, LEVEL_ORDER[currentLevelIndex]);
-    } else if (currentLevelIndex < LEVEL_ORDER.length - 1) {
-      startGame(selectedTheme, LEVEL_ORDER[currentLevelIndex + 1]);
+      startGame(selectedTheme, currentLevelIndex);
+    } else if (currentLevelIndex < releasedLevels.length - 1) {
+      startGame(selectedTheme, currentLevelIndex + 1);
     } else {
       onExit();
     }
@@ -743,7 +844,8 @@ const MemoryGame = ({ playSound, onExit }) => {
         setGuidedAnchorIndex(null);
         const nextWrongAttempts = wrongAttempts + 1;
         setWrongAttempts(nextWrongAttempts);
-        if (nextWrongAttempts >= 5) {
+        const hintThreshold = currentLevel?.tier === 'easy' ? 5 : currentLevel?.tier === 'medium' ? 6 : 7;
+        if (nextWrongAttempts >= hintThreshold) {
           setTimeout(() => {
             setFlipped([second]);
             const target = suggestCard([second], second, true);
@@ -761,12 +863,11 @@ const MemoryGame = ({ playSound, onExit }) => {
     if (cards.length > 0 && matched.length === cards.length) {
       const pairs = cards.length / 2;
       let s = 1;
-      if (moves <= pairs * 1.5) s = 3;
-      else if (moves <= pairs * 2) s = 2;
-      setStars(s);
+      if (moves <= pairs * 1.45) s = 3;
+      else if (moves <= pairs * 1.9) s = 2;
       setTimeout(() => { setPopupStars(s); setShowPopup(true); }, 500);
     }
-  }, [matched]);
+  }, [cards.length, matched.length, moves]);
 
   // ── Theme screen ──
   if (screen === 'theme') {
@@ -775,7 +876,7 @@ const MemoryGame = ({ playSound, onExit }) => {
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
+            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
           </AnimatedPressable>
           <Text style={styles.headerTitle}>🃏 Chọn chủ đề</Text>
           <View style={{ width: 70 }} />
@@ -783,70 +884,66 @@ const MemoryGame = ({ playSound, onExit }) => {
 
         <View style={styles.kidSelectIntroCard}>
           <Text style={styles.kidSelectIntroTitle}>Chọn chủ đề tìm cặp</Text>
-          <Text style={styles.kidSelectIntroSub}>Bé hãy chọn bộ hình mình yêu thích</Text>
+          <Text style={styles.kidSelectIntroSub}>10 màn đã mở khóa, 5 màn nâng cao mở sau khi cân bằng</Text>
         </View>
 
         <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
-          {Object.entries(themes).map(([key, theme]) => (
-            <AnimatedPressable key={key}
-              onPress={() => { playSound('themeSelect'); startGame(key, 'easy'); }}>
-              <LinearGradient colors={THEME_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
-                <View style={styles.kidThemeEmojiWrap}>
-                  <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
-                </View>
-                <View style={styles.kidThemeTextWrap}>
-                  <Text style={styles.kidThemeName}>{theme.name}</Text>
-                  <Text style={styles.kidThemeSub}>Chạm để chọn ▶</Text>
-                </View>
-              </LinearGradient>
-            </AnimatedPressable>
-          ))}
+          {THEME_ORDER.map((key) => {
+            const theme = themes[key];
+            if (!theme) return null;
+            return (
+              <AnimatedPressable key={key}
+                onPress={() => { playSound('themeSelect'); startGame(key, 0); }}>
+                <LinearGradient colors={THEME_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
+                  <View style={styles.kidThemeEmojiWrap}>
+                    <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
+                  </View>
+                  <View style={styles.kidThemeTextWrap}>
+                    <Text style={styles.kidThemeName}>{theme.name}</Text>
+                    <Text style={styles.kidThemeSub}>Chạm để chọn ▶</Text>
+                  </View>
+                </LinearGradient>
+              </AnimatedPressable>
+            );
+          })}
         </ScrollView>
       </LinearGradient>
     );
   }
 
   // ── Play screen ──
-  if (screen === 'play') {
-    const levelConfig = levels[selectedLevel];
-    const totalCards = levelConfig.pairs * 2;
-    const maxCols = Math.min(levelConfig.cols, 3, totalCards);
+  if (screen === 'play' && currentLevel) {
+    const totalCards = currentLevel.pairs * 2;
+    const maxCols = Math.min(currentLevel.cols, 4, totalCards);
     let cols = maxCols;
     while (cols > 1 && totalCards % cols !== 0) cols -= 1;
     const rows = totalCards / cols;
-    const pairs = levelConfig.pairs;
-    const foundPairs = matched.length / 2;
-
-    // Gap shrinks at higher difficulty so all cards fit
     const gap = cols <= 2 ? 12 : cols === 3 ? 10 : 8;
-
-    // Reserve space for top controls + hint and keep board always visible
     const reservedHeight = 44 + 44 + 58 + 36 + 24;
     const availH = SCREEN_HEIGHT - reservedHeight;
     const availW = SCREEN_WIDTH - 32;
 
     const cardFromW = Math.floor((availW - gap * (cols - 1)) / cols);
     const cardFromH = Math.floor((availH - gap * (rows - 1)) / rows);
-    const sizeCap = cols <= 2 ? 160 : cols === 3 ? 116 : 86;
-    const cardSize  = Math.max(56, Math.min(cardFromW, cardFromH, sizeCap));
+    const sizeCap = cols <= 2 ? 160 : cols === 3 ? 116 : 82;
+    const cardSize  = Math.max(48, Math.min(cardFromW, cardFromH, sizeCap));
 
     const gridW = cols * cardSize + (cols - 1) * gap;
 
     return (
       <LinearGradient colors={['#FF9A56', '#FF6B35']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
-        {/* Header */}
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
+            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
           </AnimatedPressable>
-          <View style={{ flex: 1 }} />
+          <LevelProgressHeader
+            tier={currentLevel.tier}
+            levelNum={currentLevelIndex + 1}
+            totalLevels={releasedLevels.length}
+          />
         </View>
-
-        {/* Hint */}
         <Text style={[styles.hintText, { marginBottom: 8 }]}>Lật 2 thẻ giống nhau ✨</Text>
-
-        {/* Card grid — centred, all cards visible without scroll */}
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 16 }}>
           <View style={{ width: gridW, flexDirection: 'row', flexWrap: 'wrap', gap }}>
             {cards.map((card, i) => {
@@ -871,7 +968,7 @@ const MemoryGame = ({ playSound, onExit }) => {
           visible={showPopup}
           stars={popupStars}
           levelNum={currentLevelIndex + 1}
-          totalLevels={3}
+          totalLevels={releasedLevels.length}
           onContinue={handleContinue}
           onExit={() => { setShowPopup(false); onExit(); }}
           playSound={playSound}
@@ -1057,7 +1154,7 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
+            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
           </AnimatedPressable>
           <Text style={styles.headerTitle}>🐾 Nghe tiếng thú</Text>
           <View style={{ width: 70 }} />
@@ -1110,7 +1207,7 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('level'); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
+            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
           </AnimatedPressable>
           <View style={styles.statPill}>
             <Text style={styles.animalRoundText}>Câu {currentRound}/{levelConfig.roundsToWin}</Text>
@@ -1171,6 +1268,7 @@ const GardenDraggableItem = React.memo(function GardenDraggableItem({
   wrongMarkOpacity,
   onTap,
   onDropAtScreen,
+  allowTap,
 }) {
   const tx = useRef(new Animated.Value(0)).current;
   const ty = useRef(new Animated.Value(0)).current;
@@ -1196,9 +1294,10 @@ const GardenDraggableItem = React.memo(function GardenDraggableItem({
   }, [item.id, onDropAtScreen, resetPosition]);
 
   const handleTap = useCallback(() => {
+    if (!allowTap) return;
     onTap(item.id);
     resetPosition();
-  }, [item.id, onTap, resetPosition]);
+  }, [allowTap, item.id, onTap, resetPosition]);
 
   return (
     <PanGestureHandler enabled={!disabled} onGestureEvent={onGestureEvent} onHandlerStateChange={handleStateChange}>
@@ -1207,7 +1306,7 @@ const GardenDraggableItem = React.memo(function GardenDraggableItem({
         { transform: [{ translateX: tx }, { translateY: ty }],
           opacity: disabled ? 0.65 : 1 }
       ]}>
-        <TouchableOpacity activeOpacity={0.9} onPress={handleTap} disabled={disabled}>
+        <TouchableOpacity activeOpacity={0.9} onPress={handleTap} disabled={disabled || !allowTap}>
           <LinearGradient colors={isDone ? ['#D9F7DF', '#C8EFD1'] : ['#FFFFFF', '#F4FFF7']} style={styles.gardenDragItem}>
             <Text style={styles.gardenDragEmoji}>{item.emoji}</Text>
             {isDone && (
@@ -1243,9 +1342,9 @@ const GARDEN_TASK_META = {
     prompt: 'Chạm để hái đúng nông sản',
     actionHint: 'Chạm vào đồ đúng',
     icon: '🧺',
-    targetEmoji: '🍎',
-    targetName: 'Quả táo',
-    distractorEmoji: '🍄',
+    targetEmojiPool: ['🍎', '🍓', '🍇', '🥕'],
+    targetName: 'Nông sản',
+    distractorEmojiPool: ['🍄', '🪨', '🍋', '🌰'],
     targetLabel: 'Giỏ thu hoạch',
     successToast: 'Giỏ đầy rồi!',
     interaction: 'tap',
@@ -1253,12 +1352,12 @@ const GARDEN_TASK_META = {
   [GARDEN_TASK_TYPE.FEED]: {
     id: GARDEN_TASK_TYPE.FEED,
     title: 'Cho ăn',
-    prompt: 'Kéo hoặc chạm thức ăn cho thú',
-    actionHint: 'Kéo thức ăn vào đúng con vật',
+    prompt: 'Kéo đồ ăn vào đúng chỗ',
+    actionHint: 'Kéo thức ăn vào bạn thỏ',
     icon: '🐰',
-    targetEmoji: '🥕',
-    targetName: 'Củ cà rốt',
-    distractorEmoji: '🍋',
+    targetEmojiPool: ['🥕', '🥬', '🍏', '🌽'],
+    targetName: 'Thức ăn',
+    distractorEmojiPool: ['🍋', '🧅', '🪨', '🫑'],
     targetLabel: 'Bạn thỏ đang đói',
     successToast: 'Bạn thỏ no rồi!',
     interaction: 'drag',
@@ -1266,12 +1365,12 @@ const GARDEN_TASK_META = {
   [GARDEN_TASK_TYPE.WATER]: {
     id: GARDEN_TASK_TYPE.WATER,
     title: 'Tưới nước',
-    prompt: 'Kéo hoặc chạm giọt nước vào hoa',
+    prompt: 'Kéo giọt nước vào luống hoa',
     actionHint: 'Kéo giọt nước vào luống hoa',
     icon: '🌼',
-    targetEmoji: '💧',
-    targetName: 'Giọt nước',
-    distractorEmoji: '🪨',
+    targetEmojiPool: ['💧', '🫧', '🚿'],
+    targetName: 'Nước tưới',
+    distractorEmojiPool: ['🪨', '🍂', '🧱', '🥥'],
     targetLabel: 'Luống hoa',
     successToast: 'Hoa nở đẹp quá!',
     interaction: 'drag',
@@ -1279,113 +1378,113 @@ const GARDEN_TASK_META = {
 };
 
 const GARDEN_LEVELS = [
-  { id: 1, difficulty: 'easy', taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 3 },
-  { id: 2, difficulty: 'easy', taskType: GARDEN_TASK_TYPE.FEED, targetCount: 3 },
-  { id: 3, difficulty: 'easy', taskType: GARDEN_TASK_TYPE.WATER, targetCount: 3 },
-  { id: 4, difficulty: 'medium', taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 4 },
-  { id: 5, difficulty: 'medium', taskType: GARDEN_TASK_TYPE.FEED, targetCount: 4 },
-  { id: 6, difficulty: 'medium', taskType: GARDEN_TASK_TYPE.WATER, targetCount: 4 },
-  { id: 7, difficulty: 'medium', taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 5 },
-  { id: 8, difficulty: 'hard', taskType: GARDEN_TASK_TYPE.FEED, targetCount: 5 },
-  { id: 9, difficulty: 'hard', taskType: GARDEN_TASK_TYPE.WATER, targetCount: 5 },
-  { id: 10, difficulty: 'hard', taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 5 },
+  { id: 1, key: makeLevelKey('easy', 1), tier: 'easy', subLevel: 1, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 4, distractorCount: 1, timeLimit: 40, maxMistakes: 6, tapAssist: true, sequence: false },
+  { id: 2, key: makeLevelKey('easy', 2), tier: 'easy', subLevel: 2, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 4, distractorCount: 1, timeLimit: 38, maxMistakes: 6, tapAssist: true, sequence: false },
+  { id: 3, key: makeLevelKey('easy', 3), tier: 'easy', subLevel: 3, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 5, distractorCount: 1, timeLimit: 38, maxMistakes: 6, tapAssist: true, sequence: false },
+  { id: 4, key: makeLevelKey('medium', 1), tier: 'medium', subLevel: 1, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 5, distractorCount: 2, timeLimit: 34, maxMistakes: 5, tapAssist: false, sequence: false },
+  { id: 5, key: makeLevelKey('medium', 2), tier: 'medium', subLevel: 2, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 5, distractorCount: 2, timeLimit: 33, maxMistakes: 5, tapAssist: false, sequence: false },
+  { id: 6, key: makeLevelKey('medium', 3), tier: 'medium', subLevel: 3, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 6, distractorCount: 2, timeLimit: 32, maxMistakes: 5, tapAssist: false, sequence: false },
+  { id: 7, key: makeLevelKey('hard', 1), tier: 'hard', subLevel: 1, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 6, distractorCount: 3, timeLimit: 30, maxMistakes: 4, tapAssist: false, sequence: true },
+  { id: 8, key: makeLevelKey('hard', 2), tier: 'hard', subLevel: 2, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 6, distractorCount: 3, timeLimit: 28, maxMistakes: 4, tapAssist: false, sequence: true },
+  { id: 9, key: makeLevelKey('hard', 3), tier: 'hard', subLevel: 3, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 6, distractorCount: 3, timeLimit: 28, maxMistakes: 4, tapAssist: false, sequence: true },
+  { id: 10, key: makeLevelKey('expert', 1), tier: 'expert', subLevel: 1, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 7, distractorCount: 3, timeLimit: 26, maxMistakes: 3, tapAssist: false, sequence: true },
+  { id: 11, key: makeLevelKey('expert', 2), tier: 'expert', subLevel: 2, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 7, distractorCount: 4, timeLimit: 24, maxMistakes: 3, tapAssist: false, sequence: true },
+  { id: 12, key: makeLevelKey('expert', 3), tier: 'expert', subLevel: 3, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 7, distractorCount: 4, timeLimit: 24, maxMistakes: 3, tapAssist: false, sequence: true },
+  { id: 13, key: makeLevelKey('master', 1), tier: 'master', subLevel: 1, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 8, distractorCount: 4, timeLimit: 22, maxMistakes: 3, tapAssist: false, sequence: true },
+  { id: 14, key: makeLevelKey('master', 2), tier: 'master', subLevel: 2, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 8, distractorCount: 4, timeLimit: 20, maxMistakes: 2, tapAssist: false, sequence: true },
+  { id: 15, key: makeLevelKey('master', 3), tier: 'master', subLevel: 3, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 9, distractorCount: 5, timeLimit: 18, maxMistakes: 2, tapAssist: false, sequence: true },
 ];
 
 const GardenHarvestGame = ({ playSound, onExit }) => {
-  const levels = {
-    easy: { name: 'Dễ', meter: 1 },
-    medium: { name: 'Vừa', meter: 2 },
-    hard: { name: 'Khó', meter: 3 },
-  };
-
+  const releasedLevels = useMemo(() => getReleasedLevelConfigs(GARDEN_LEVELS), []);
   const [screen, setScreen] = useState('play');
-  const [selectedDifficulty, setSelectedDifficulty] = useState('easy');
-  const [activeLevels, setActiveLevels] = useState(() => GARDEN_LEVELS.filter((l) => l.difficulty === 'easy'));
   const [levelIndex, setLevelIndex] = useState(0);
   const [playItems, setPlayItems] = useState([]);
   const [taskProgress, setTaskProgress] = useState(0);
   const [totalCorrect, setTotalCorrect] = useState(0);
   const [wrongPicks, setWrongPicks] = useState(0);
+  const [, setComboStreak] = useState(0);
+  const [bestCombo, setBestCombo] = useState(0);
   const [hintVisible, setHintVisible] = useState(false);
   const [selectedWrongItem, setSelectedWrongItem] = useState(null);
   const [successToast, setSuccessToast] = useState('');
   const [targetRect, setTargetRect] = useState(null);
-  const [currentDifficultyIndex, setCurrentDifficultyIndex] = useState(0);
   const [showPopup, setShowPopup] = useState(false);
   const [popupStars, setPopupStars] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [sequenceTarget, setSequenceTarget] = useState([]);
   const targetRef = useRef(null);
   const wrongMarkOpacity = useRef(new Animated.Value(0)).current;
 
-  const currentLevel = activeLevels[levelIndex] || null;
+  const currentLevel = releasedLevels[levelIndex] || null;
   const currentMeta = currentLevel ? GARDEN_TASK_META[currentLevel.taskType] : null;
 
   const shuffled = (items) => [...items].sort(() => Math.random() - 0.5);
+  const chooseRandom = (pool) => pool[Math.floor(Math.random() * pool.length)];
 
   const buildLevelItems = useCallback((level) => {
-    if (!level) return [];
+    if (!level) return { items: [], sequence: [] };
     const meta = GARDEN_TASK_META[level.taskType];
-    const items = [];
-    for (let i = 0; i < level.targetCount; i += 1) {
-      items.push({
-        id: `target-${level.id}-${i}`,
-        kind: 'target',
-        emoji: meta.targetEmoji,
-        done: false,
-      });
-    }
 
-    const distractorCount = level.targetCount >= 5 ? 2 : 1;
-    for (let i = 0; i < distractorCount; i += 1) {
+    const sequence = Array.from({ length: level.targetCount }, () => chooseRandom(meta.targetEmojiPool));
+    const items = sequence.map((emoji, i) => ({
+      id: `target-${level.id}-${i}`,
+      kind: 'target',
+      emoji,
+      done: false,
+    }));
+
+    for (let i = 0; i < level.distractorCount; i += 1) {
       items.push({
         id: `wrong-${level.id}-${i}`,
         kind: 'wrong',
-        emoji: meta.distractorEmoji,
+        emoji: chooseRandom(meta.distractorEmojiPool),
         done: false,
       });
     }
-    return shuffled(items);
+    return { items: shuffled(items), sequence };
   }, []);
 
   const prepareLevel = useCallback((level) => {
-    setPlayItems(buildLevelItems(level));
+    const next = buildLevelItems(level);
+    setPlayItems(next.items);
+    setSequenceTarget(next.sequence);
     setTaskProgress(0);
     setHintVisible(false);
     setSelectedWrongItem(null);
     setSuccessToast('');
     setTargetRect(null);
-    wrongMarkOpacity.setValue(0);
-  }, [buildLevelItems]);
-
-  const startGame = (difficultyKey) => {
-    const filteredLevels = GARDEN_LEVELS.filter((level) => level.difficulty === difficultyKey);
-    if (!filteredLevels.length) return;
-    setSelectedDifficulty(difficultyKey);
-    setActiveLevels(filteredLevels);
-    setLevelIndex(0);
-    prepareLevel(filteredLevels[0]);
+    setTimeLeft(level?.timeLimit ?? 0);
     setTotalCorrect(0);
     setWrongPicks(0);
-    setShowPopup(false);
-    setScreen('play');
-  };
-
-  const handleContinue = () => {
-    setShowPopup(false);
-    if (popupStars <= 1) {
-      startGame(LEVEL_ORDER[currentDifficultyIndex]);
-    } else if (currentDifficultyIndex < LEVEL_ORDER.length - 1) {
-      const nextIdx = currentDifficultyIndex + 1;
-      setCurrentDifficultyIndex(nextIdx);
-      startGame(LEVEL_ORDER[nextIdx]);
-    } else {
-      onExit();
-    }
-  };
+    setComboStreak(0);
+    setBestCombo(0);
+    wrongMarkOpacity.setValue(0);
+  }, [buildLevelItems, wrongMarkOpacity]);
 
   useEffect(() => {
-    const firstLevel = GARDEN_LEVELS.find((l) => l.difficulty === 'easy');
-    if (firstLevel) prepareLevel(firstLevel);
-  }, []);
+    if (currentLevel) prepareLevel(currentLevel);
+  }, [currentLevel, prepareLevel]);
+
+  useEffect(() => {
+    if (!currentLevel || showPopup) return;
+    const timer = setInterval(() => {
+      setTimeLeft((value) => {
+        if (value <= 1) {
+          clearInterval(timer);
+          setSuccessToast('Hết giờ rồi, thử lại màn này nhé!');
+          setTimeout(() => {
+            setSuccessToast('');
+            setPopupStars(1);
+            setShowPopup(true);
+          }, 420);
+          return 0;
+        }
+        return value - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [currentLevel, showPopup]);
 
   const refreshTargetRect = useCallback(() => {
     if (!targetRef.current) return;
@@ -1400,9 +1499,18 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
     return () => clearTimeout(timeout);
   }, [screen, levelIndex, currentMeta, refreshTargetRect]);
 
-  const registerWrongPick = useCallback((itemId) => {
+  const getStars = useCallback(() => {
+    if (!currentLevel) return 1;
+    const accuracy = totalCorrect / Math.max(1, totalCorrect + wrongPicks);
+    if (wrongPicks === 0 && accuracy >= 0.9 && timeLeft >= Math.ceil(currentLevel.timeLimit * 0.35)) return 3;
+    if (wrongPicks <= Math.max(1, currentLevel.maxMistakes - 2) && accuracy >= 0.65) return 2;
+    return 1;
+  }, [currentLevel, timeLeft, totalCorrect, wrongPicks]);
+
+  const registerWrongPick = useCallback((itemId, customHint = null) => {
+    if (!currentLevel) return;
     playSound('wrong');
-    setWrongPicks((value) => value + 1);
+    setComboStreak(0);
     setSelectedWrongItem(itemId);
     wrongMarkOpacity.setValue(1);
     Animated.timing(wrongMarkOpacity, {
@@ -1412,29 +1520,52 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
     }).start(() => {
       setSelectedWrongItem(null);
     });
-    setHintVisible((value) => value || wrongPicks >= 1);
-    if (wrongPicks >= 1) {
-      setTimeout(() => setHintVisible(false), 1600);
+    setWrongPicks((value) => {
+      const next = value + 1;
+      if (next >= currentLevel.maxMistakes) {
+        setSuccessToast('Ôi, hết lượt sai rồi!');
+        setTimeout(() => {
+          setSuccessToast('');
+          setPopupStars(1);
+          setShowPopup(true);
+        }, 420);
+      }
+      return next;
+    });
+    if (currentLevel.tier === 'easy' || currentLevel.tier === 'medium') {
+      setHintVisible(true);
+      setTimeout(() => setHintVisible(false), 1500);
     }
-  }, [playSound, wrongMarkOpacity, wrongPicks]);
+    if (customHint) {
+      setSuccessToast(customHint);
+      setTimeout(() => setSuccessToast(''), 1100);
+    }
+  }, [currentLevel, playSound, wrongMarkOpacity]);
 
   const goNextLevel = useCallback(() => {
     const nextLevelIndex = levelIndex + 1;
-    if (nextLevelIndex >= activeLevels.length) {
-      const s = wrongPicks <= 1 ? 3 : wrongPicks <= 4 ? 2 : 1;
-      setPopupStars(s);
+    if (nextLevelIndex >= releasedLevels.length) {
+      setPopupStars(getStars());
       setShowPopup(true);
       return;
     }
     setLevelIndex(nextLevelIndex);
-    prepareLevel(activeLevels[nextLevelIndex]);
-  }, [activeLevels, levelIndex, wrongPicks, prepareLevel]);
+  }, [getStars, levelIndex, releasedLevels.length]);
 
   const registerCorrectPick = useCallback((itemId) => {
     if (!currentLevel || !currentMeta) return;
+    const item = playItems.find((entry) => entry.id === itemId);
+    if (!item || item.done) return;
+
+    const expectedEmoji = sequenceTarget[taskProgress] || null;
+    if (currentLevel.sequence && expectedEmoji && item.emoji !== expectedEmoji) {
+      registerWrongPick(itemId, `Thử theo thứ tự: ${expectedEmoji}`);
+      return;
+    }
+
     playSound('match');
     setPlayItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, done: true } : item))
+      prev.map((entry) => (entry.id === itemId ? { ...entry, done: true } : entry))
     );
     setTaskProgress((prev) => {
       const next = prev + 1;
@@ -1442,13 +1573,24 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
         setSuccessToast(currentMeta.successToast);
         setTimeout(() => {
           setSuccessToast('');
-          goNextLevel();
-        }, 780);
+          const stars = getStars();
+          if (stars <= 1) {
+            setPopupStars(1);
+            setShowPopup(true);
+          } else {
+            goNextLevel();
+          }
+        }, 720);
       }
       return next;
     });
     setTotalCorrect((value) => value + 1);
-  }, [currentLevel, currentMeta, goNextLevel, playSound]);
+    setComboStreak((value) => {
+      const next = value + 1;
+      setBestCombo((best) => Math.max(best, next));
+      return next;
+    });
+  }, [currentLevel, currentMeta, getStars, goNextLevel, playItems, playSound, registerWrongPick, sequenceTarget, taskProgress]);
 
   const handleHarvestTap = useCallback((itemId) => {
     const item = playItems.find((entry) => entry.id === itemId);
@@ -1487,53 +1629,76 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
   const handleDragTap = useCallback((itemId) => {
     const item = playItems.find((entry) => entry.id === itemId);
     if (!item || item.done) return;
+    if (!currentLevel?.tapAssist) {
+      registerWrongPick(itemId, 'Màn này cần kéo thả vào đúng mục tiêu nhé!');
+      return;
+    }
     if (item.kind === 'target') {
       registerCorrectPick(itemId);
       return;
     }
     registerWrongPick(itemId);
-  }, [playItems, registerCorrectPick, registerWrongPick]);
+  }, [currentLevel, playItems, registerCorrectPick, registerWrongPick]);
 
-  const getStars = () => {
-    if (wrongPicks <= 1) return 3;
-    if (wrongPicks <= 4) return 2;
-    return 1;
+  const handleContinue = () => {
+    setShowPopup(false);
+    if (popupStars <= 1) {
+      if (currentLevel) prepareLevel(currentLevel);
+    } else if (levelIndex < releasedLevels.length - 1) {
+      setLevelIndex((value) => value + 1);
+    } else {
+      onExit();
+    }
   };
 
   if (screen === 'play' && currentLevel && currentMeta) {
     const finishedCount = playItems.filter((item) => item.kind === 'target' && item.done).length;
     const taskLeft = Math.max(0, currentLevel.targetCount - finishedCount);
-    const dragItems = playItems;
+    const visibleItems = playItems.filter((item) => !item.done);
     const isDragTask = currentMeta.interaction === 'drag';
+    const nextVisibleTarget = visibleItems.find((item) => item.kind === 'target');
+    const previewEmoji = currentLevel.sequence
+      ? (sequenceTarget[taskProgress] || nextVisibleTarget?.emoji || currentMeta.targetEmojiPool[0])
+      : currentMeta.icon;
+    const mistakesLeft = Math.max(0, currentLevel.maxMistakes - wrongPicks);
 
     return (
       <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
+            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
           </AnimatedPressable>
-          <View style={styles.statPill}>
-            <Text style={styles.statPillText}>Màn {currentLevel.id}</Text>
-          </View>
+          <LevelProgressHeader
+            tier={currentLevel.tier}
+            levelNum={levelIndex + 1}
+            totalLevels={releasedLevels.length}
+          />
         </View>
 
         <View style={styles.gardenPlayWrap}>
           <View style={styles.gardenMissionCard}>
-            <Text style={styles.gardenMissionTitle}>{currentMeta.title}</Text>
-            <Text style={styles.gardenMissionSub}>
-              Mục tiêu: Hoàn thành {currentLevel.targetCount} lượt - Còn {taskLeft}
-            </Text>
-            <View style={styles.gardenTargetPreviewCard}>
-              <Text style={styles.gardenTargetPreviewLabel}>Bé cần làm với:</Text>
-              <View style={styles.gardenTargetPreviewIconWrap}>
-                <Text style={styles.gardenTargetPreviewEmoji}>{currentMeta.targetEmoji}</Text>
+            <Text style={styles.gardenMissionTitle}>{currentMeta.title} · {getTierLabel(currentLevel.tier)}</Text>
+            <View style={styles.gardenMissionStatsRow}>
+              <View style={styles.gardenMissionStatChip}>
+                <Text style={styles.gardenMissionStatText}>🎯 {taskLeft}</Text>
               </View>
-              <Text style={styles.gardenTargetPreviewName}>{currentMeta.targetName}</Text>
+              <View style={styles.gardenMissionStatChip}>
+                <Text style={styles.gardenMissionStatText}>⏱️ {timeLeft}s</Text>
+              </View>
+              <View style={styles.gardenMissionStatChip}>
+                <Text style={styles.gardenMissionStatText}>❤️ {mistakesLeft}</Text>
+              </View>
             </View>
-            <Text style={styles.gardenMissionHint}>
-              {currentMeta.prompt}
-            </Text>
+            <View style={styles.gardenTargetPreviewCard}>
+              <View style={styles.gardenTargetPreviewIconWrap}>
+                <Text style={styles.gardenTargetPreviewEmoji}>{previewEmoji}</Text>
+              </View>
+            </View>
+            <Text style={styles.gardenMissionHint}>{currentMeta.actionHint}</Text>
+            {currentLevel.sequence && (
+              <Text style={styles.gardenMissionHint}>✨ Làm đúng theo thứ tự</Text>
+            )}
             {hintVisible && (
               <View style={styles.gardenHintBubble}>
                 <Text style={styles.gardenHintText}>Gợi ý: {currentMeta.actionHint}</Text>
@@ -1548,11 +1713,7 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
 
           {isDragTask ? (
             <View style={styles.gardenDragTaskWrap}>
-              <View
-                ref={targetRef}
-                onLayout={refreshTargetRect}
-                style={styles.gardenDropZone}
-              >
+              <View ref={targetRef} onLayout={refreshTargetRect} style={styles.gardenDropZone}>
                 <Text style={styles.gardenDropZoneIcon}>{currentMeta.icon}</Text>
                 <Text style={styles.gardenDropZoneLabel}>{currentMeta.targetLabel}</Text>
                 <Text style={styles.gardenDropZoneCounter}>
@@ -1561,7 +1722,7 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
               </View>
 
               <View style={styles.gardenDragTray}>
-                {dragItems.map((item) => (
+                {visibleItems.map((item) => (
                   <GardenDraggableItem
                     key={item.id}
                     item={item}
@@ -1571,13 +1732,14 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
                     wrongMarkOpacity={wrongMarkOpacity}
                     onTap={handleDragTap}
                     onDropAtScreen={handleDropAtScreen}
+                    allowTap={currentLevel.tapAssist}
                   />
                 ))}
               </View>
             </View>
           ) : (
             <View style={styles.gardenHarvestGrid}>
-              {playItems.map((item) => {
+              {visibleItems.map((item) => {
                 const isWrong = selectedWrongItem === item.id;
                 return (
                   <TouchableOpacity
@@ -1611,8 +1773,8 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
         <RewardPopup
           visible={showPopup}
           stars={popupStars}
-          levelNum={currentDifficultyIndex + 1}
-          totalLevels={3}
+          levelNum={levelIndex + 1}
+          totalLevels={releasedLevels.length}
           onContinue={handleContinue}
           onExit={() => { setShowPopup(false); onExit(); }}
           playSound={playSound}
@@ -1627,15 +1789,9 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
 // RESTORED GAME: COUNTING QUIZ
 // ============================================
 const PuzzleGame = ({ playSound, onExit }) => {
-  const levels = {
-    easy: { name: 'Dễ', maxCount: 3, optionCount: 3 },
-    medium: { name: 'Vừa', maxCount: 5, optionCount: 3 },
-    hard: { name: 'Khó', maxCount: 7, optionCount: 3 },
-  };
-
+  const releasedLevels = useMemo(() => getReleasedLevelConfigs(PUZZLE_LEVELS), []);
   const [screen, setScreen] = useState('theme');
   const [selectedTheme, setSelectedTheme] = useState(null);
-  const [selectedLevel, setSelectedLevel] = useState(null);
   const [roundData, setRoundData] = useState(null);
   const [wrongPicks, setWrongPicks] = useState(0);
   const [selectedWrongOption, setSelectedWrongOption] = useState(null);
@@ -1643,24 +1799,76 @@ const PuzzleGame = ({ playSound, onExit }) => {
   const [showPopup, setShowPopup] = useState(false);
   const [popupStars, setPopupStars] = useState(0);
 
-  const generateRound = useCallback((themeKey, levelKey) => {
+  const hintAnim = useRef(new Animated.Value(0)).current;
+  const hintTimer = useRef(null);
+  const [showHint, setShowHint] = useState(false);
+  const currentLevel = releasedLevels[currentLevelIndex] || releasedLevels[0];
+  const [leftCountCardBox, setLeftCountCardBox] = useState({ width: 0, height: 0 });
+  const [rightCountCardBox, setRightCountCardBox] = useState({ width: 0, height: 0 });
+
+  const computeEmojiSizeForCard = useCallback((itemCount, box) => {
+    if (!itemCount) return 32;
+    const width = box?.width ?? 0;
+    const height = box?.height ?? 0;
+
+    // Fallback before first layout pass completes.
+    if (width <= 0 || height <= 0) {
+      return itemCount >= 10 ? 20 : itemCount >= 8 ? 22 : itemCount >= 6 ? 26 : itemCount >= 4 ? 32 : 40;
+    }
+
+    const gap = 6;
+    const availW = Math.max(1, width - 16);
+    const availH = Math.max(1, height - 14);
+    const maxCols = Math.min(itemCount, 8);
+    let best = 18;
+
+    for (let cols = 1; cols <= maxCols; cols += 1) {
+      const rows = Math.ceil(itemCount / cols);
+      const byW = (availW - gap * (cols - 1)) / cols;
+      const byH = (availH - gap * (rows - 1)) / rows;
+      const candidate = Math.min(byW, byH);
+      if (candidate > best) best = candidate;
+    }
+
+    // Keep extra headroom because emoji glyph bounds are not exact squares.
+    return Math.max(16, Math.min(56, Math.floor(best * 0.78)));
+  }, []);
+
+  const startHintTimer = useCallback(() => {
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    hintAnim.stopAnimation();
+    hintAnim.setValue(0);
+    setShowHint(false);
+    hintTimer.current = setTimeout(() => {
+      setShowHint(true);
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(hintAnim, { toValue: 1, duration: 520, useNativeDriver: true }),
+          Animated.timing(hintAnim, { toValue: 0, duration: 520, useNativeDriver: true }),
+        ])
+      ).start();
+    }, 18000);
+  }, [hintAnim]);
+
+  useEffect(() => {
+    if (screen === 'play' && roundData) startHintTimer();
+    return () => { if (hintTimer.current) clearTimeout(hintTimer.current); hintAnim.stopAnimation(); };
+  }, [screen, roundData, startHintTimer]);
+
+  const generateRound = useCallback((themeKey, levelConfig) => {
     const themeItems = themes[themeKey].items;
-    const level = levels[levelKey];
-    if (!themeItems || !level) return;
+    if (!themeItems || !levelConfig) return;
 
     const firstIndex = Math.floor(Math.random() * themeItems.length);
-    let secondIndex = Math.floor(Math.random() * themeItems.length);
-    while (secondIndex === firstIndex) secondIndex = Math.floor(Math.random() * themeItems.length);
-
     const firstEmoji = themeItems[firstIndex];
-    const secondEmoji = themeItems[secondIndex];
-    const firstCount = 1 + Math.floor(Math.random() * level.maxCount);
-    const secondCount = 1 + Math.floor(Math.random() * level.maxCount);
+    const secondEmoji = firstEmoji;
+    const firstCount = 1 + Math.floor(Math.random() * levelConfig.maxCount);
+    const secondCount = 1 + Math.floor(Math.random() * levelConfig.maxCount);
     const answer = firstCount + secondCount;
 
     const wrongOptions = new Set();
-    while (wrongOptions.size < level.optionCount - 1) {
-      const delta = Math.floor(Math.random() * 7) - 3;
+    while (wrongOptions.size < levelConfig.optionCount - 1) {
+      const delta = Math.floor(Math.random() * (levelConfig.maxCount + 2)) - Math.floor(levelConfig.maxCount / 2);
       const candidate = answer + (delta === 0 ? 2 : delta);
       if (candidate > 1 && candidate !== answer) wrongOptions.add(candidate);
     }
@@ -1670,46 +1878,52 @@ const PuzzleGame = ({ playSound, onExit }) => {
     setSelectedWrongOption(null);
   }, []);
 
-  const startGame = (themeKey, levelKey) => {
+  const startGame = (themeKey, levelIndex = 0) => {
+    const level = releasedLevels[levelIndex];
+    if (!themeKey || !level) return;
     setSelectedTheme(themeKey);
-    setSelectedLevel(levelKey);
     setWrongPicks(0);
-    setCurrentLevelIndex(LEVEL_ORDER.indexOf(levelKey));
+    setCurrentLevelIndex(levelIndex);
     setShowPopup(false);
-    generateRound(themeKey, levelKey);
+    generateRound(themeKey, level);
     setScreen('play');
   };
 
   const handleContinue = () => {
     setShowPopup(false);
+    if (!selectedTheme) return;
     if (popupStars <= 1) {
-      startGame(selectedTheme, LEVEL_ORDER[currentLevelIndex]);
-    } else if (currentLevelIndex < LEVEL_ORDER.length - 1) {
-      startGame(selectedTheme, LEVEL_ORDER[currentLevelIndex + 1]);
+      startGame(selectedTheme, currentLevelIndex);
+    } else if (currentLevelIndex < releasedLevels.length - 1) {
+      startGame(selectedTheme, currentLevelIndex + 1);
     } else {
       onExit();
     }
   };
 
   const handlePickOption = (value) => {
-    if (!roundData) return;
+    if (!roundData || !currentLevel) return;
+    startHintTimer();
     if (value === roundData.answer) {
       playSound('match');
-      const s = wrongPicks === 0 ? 3 : wrongPicks <= 2 ? 2 : 1;
+      const s = wrongPicks === 0 ? 3 : wrongPicks <= currentLevel.star2MaxWrong ? 2 : 1;
       setPopupStars(s);
       setShowPopup(true);
       return;
     }
     playSound('wrong');
-    setWrongPicks((v) => v + 1);
+    setWrongPicks((v) => {
+      const next = v + 1;
+      if (next >= currentLevel.mistakeBudget) {
+        setTimeout(() => {
+          setPopupStars(1);
+          setShowPopup(true);
+        }, 250);
+      }
+      return next;
+    });
     setSelectedWrongOption(value);
     setTimeout(() => setSelectedWrongOption(null), 420);
-  };
-
-  const getStars = () => {
-    if (wrongPicks === 0) return 3;
-    if (wrongPicks <= 2) return 2;
-    return 1;
   };
 
   if (screen === 'theme') {
@@ -1718,7 +1932,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
+            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
           </AnimatedPressable>
           <Text style={styles.headerTitle}>🧮 Chọn chủ đề</Text>
           <View style={{ width: 70 }} />
@@ -1726,84 +1940,147 @@ const PuzzleGame = ({ playSound, onExit }) => {
 
         <View style={styles.kidSelectIntroCard}>
           <Text style={styles.kidSelectIntroTitle}>Đếm hình và chọn số</Text>
-          <Text style={styles.kidSelectIntroSub}>Ví dụ: 2 quả + 3 quả = 5</Text>
+          <Text style={styles.kidSelectIntroSub}>10 màn đã mở khóa, mỗi màn có giới hạn sai để tăng thử thách</Text>
         </View>
 
         <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
-          {Object.entries(themes).map(([key, theme]) => (
-            <AnimatedPressable key={key}
-              onPress={() => { playSound('themeSelect'); startGame(key, 'easy'); }}>
-              <LinearGradient colors={THEME_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
-                <View style={styles.kidThemeEmojiWrap}>
-                  <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
-                </View>
-                <View style={styles.kidThemeTextWrap}>
-                  <Text style={styles.kidThemeName}>{theme.name}</Text>
-                  <Text style={styles.kidThemeSub}>Chạm để chọn ▶</Text>
-                </View>
-              </LinearGradient>
-            </AnimatedPressable>
-          ))}
+          {THEME_ORDER.map((key) => {
+            const theme = themes[key];
+            if (!theme) return null;
+            return (
+              <AnimatedPressable key={key}
+                onPress={() => { playSound('themeSelect'); startGame(key, 0); }}>
+                <LinearGradient colors={THEME_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
+                  <View style={styles.kidThemeEmojiWrap}>
+                    <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
+                  </View>
+                  <View style={styles.kidThemeTextWrap}>
+                    <Text style={styles.kidThemeName}>{theme.name}</Text>
+                    <Text style={styles.kidThemeSub}>Chạm để chọn ▶</Text>
+                  </View>
+                </LinearGradient>
+              </AnimatedPressable>
+            );
+          })}
         </ScrollView>
       </LinearGradient>
     );
   }
 
-  if (screen === 'play' && roundData) {
+  const hintScale = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+  const hintLift = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
+  const handLift = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [-28, -16] });
+  const handScale = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] });
+
+  if (screen === 'play' && roundData && currentLevel) {
     const countRowA = Array.from({ length: roundData.firstCount });
     const countRowB = Array.from({ length: roundData.secondCount });
-    const optionWidth = Math.max(120, Math.floor((SCREEN_WIDTH - 62) / 2));
+    const emojiSizeA = computeEmojiSizeForCard(roundData.firstCount, leftCountCardBox);
+    const emojiSizeB = computeEmojiSizeForCard(roundData.secondCount, rightCountCardBox);
 
     return (
       <LinearGradient colors={['#4FAC5B', '#2C8E6B']} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { marginTop: 44 }]}>
           <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Text style={styles.backButtonText}>◀ Về</Text>
+            <Ionicons name="chevron-back" size={24} color="#3E4DB3" />
           </AnimatedPressable>
-          <View style={{ flex: 1 }} />
+          <LevelProgressHeader
+            tier={currentLevel.tier}
+            levelNum={currentLevelIndex + 1}
+            totalLevels={releasedLevels.length}
+          />
         </View>
 
         <View style={styles.countPlayContent}>
-          <View style={styles.countQuestionCard}>
-            <Text style={styles.countQuestionTitle}>Đếm hình và chọn kết quả</Text>
-            <View style={styles.countEquationWrap}>
-              <View style={styles.countItemCard}>
-                <Text style={styles.countItemNumber}>{roundData.firstCount}</Text>
-                <View style={styles.countEmojiRow}>
-                  {countRowA.map((_, i) => <Text key={`a-${i}`} style={styles.countEmoji}>{roundData.firstEmoji}</Text>)}
+          <View style={styles.countTopHalf}>
+            <View style={styles.countQuestionCard}>
+              <Text style={styles.countQuestionTitle}>Đếm hình và chọn kết quả</Text>
+              <Text style={[styles.countOptionsTitle, { color: '#2E7D32', marginBottom: 10 }]}>
+                {getTierLabel(currentLevel.tier)} · Sai {wrongPicks}/{currentLevel.mistakeBudget}
+              </Text>
+              <View style={styles.countEquationWrap}>
+                <View
+                  style={styles.countItemCard}
+                  onLayout={(e) => {
+                    const { width, height } = e.nativeEvent.layout;
+                    setLeftCountCardBox((prev) => (
+                      prev.width === width && prev.height === height ? prev : { width, height }
+                    ));
+                  }}
+                >
+                  <View style={styles.countEmojiRow}>
+                    {countRowA.map((_, i) => (
+                      <Text key={`a-${i}`} style={[styles.countEmoji, { fontSize: emojiSizeA, lineHeight: emojiSizeA + 2 }]}>
+                        {roundData.firstEmoji}
+                      </Text>
+                    ))}
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.countMathSign}>＋</Text>
-              <View style={styles.countItemCard}>
-                <Text style={styles.countItemNumber}>{roundData.secondCount}</Text>
-                <View style={styles.countEmojiRow}>
-                  {countRowB.map((_, i) => <Text key={`b-${i}`} style={styles.countEmoji}>{roundData.secondEmoji}</Text>)}
+                <Text style={styles.countMathSign}>＋</Text>
+                <View
+                  style={styles.countItemCard}
+                  onLayout={(e) => {
+                    const { width, height } = e.nativeEvent.layout;
+                    setRightCountCardBox((prev) => (
+                      prev.width === width && prev.height === height ? prev : { width, height }
+                    ));
+                  }}
+                >
+                  <View style={styles.countEmojiRow}>
+                    {countRowB.map((_, i) => (
+                      <Text key={`b-${i}`} style={[styles.countEmoji, { fontSize: emojiSizeB, lineHeight: emojiSizeB + 2 }]}>
+                        {roundData.secondEmoji}
+                      </Text>
+                    ))}
+                  </View>
                 </View>
-              </View>
-              <View style={styles.countResultWrap}>
-                <Text style={styles.countMathSign}>＝</Text>
-                <Text style={styles.countResultText}>?</Text>
+                <View style={styles.countResultWrap}>
+                  <Text style={styles.countMathSign}>＝</Text>
+                  <Text style={styles.countResultText}>?</Text>
+                </View>
               </View>
             </View>
           </View>
 
-          <View style={styles.countOptionsWrap}>
-            <Text style={styles.countOptionsTitle}>Chọn đáp án đúng</Text>
-            <View style={styles.countOptionGrid}>
-              {roundData.options.map((option) => {
-                const isWrongSelected = selectedWrongOption === option;
-                return (
-                  <AnimatedPressable key={option} onPress={() => handlePickOption(option)}>
-                    <LinearGradient
-                      colors={isWrongSelected ? ['#EF5350', '#E53935'] : ['#FFFFFF', '#F3F7FF']}
-                      style={[styles.countOptionButton, { width: optionWidth }]}
-                    >
-                      <Text style={[styles.countOptionText, isWrongSelected && { color: '#FFF' }]}>{option}</Text>
-                    </LinearGradient>
-                  </AnimatedPressable>
-                );
-              })}
+          <View style={styles.countBottomHalf}>
+            <View style={styles.countOptionsWrap}>
+              <Text style={styles.countOptionsTitle}>Chọn đáp án đúng</Text>
+              <View style={styles.countOptionGrid}>
+                {roundData.options.map((option) => {
+                  const isWrongSelected = selectedWrongOption === option;
+                  const isHinted = showHint && option === roundData.answer;
+                  return (
+                    <AnimatedPressable key={option} onPress={() => handlePickOption(option)}>
+                      <Animated.View style={[
+                        { position: 'relative' },
+                        isHinted && { transform: [{ scale: hintScale }, { translateY: hintLift }] },
+                      ]}>
+                        <LinearGradient
+                          colors={isWrongSelected ? ['#EF5350', '#E53935'] : ['#FFFFFF', '#F3F7FF']}
+                          style={[styles.countOptionButton, styles.countOptionButtonHalf, isHinted && { borderWidth: 3, borderColor: '#FFD54F' }]}
+                        >
+                          <Text style={[styles.countOptionText, isWrongSelected && { color: '#FFF' }]}>{option}</Text>
+                        </LinearGradient>
+                        {isHinted && (
+                          <Animated.View
+                            pointerEvents="none"
+                            style={[styles.hintHandWrap, {
+                              width: 52,
+                              height: 52,
+                              top: 16,
+                              right: 10,
+                              transform: [{ translateY: handLift }, { scale: handScale }],
+                            }]}
+                          >
+                            <Image source={HAND_POINTER_ASSET} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                          </Animated.View>
+                        )}
+                      </Animated.View>
+                    </AnimatedPressable>
+                  );
+                })}
+              </View>
             </View>
           </View>
         </View>
@@ -1811,7 +2088,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
           visible={showPopup}
           stars={popupStars}
           levelNum={currentLevelIndex + 1}
-          totalLevels={3}
+          totalLevels={releasedLevels.length}
           onContinue={handleContinue}
           onExit={() => { setShowPopup(false); onExit(); }}
           playSound={playSound}
@@ -2017,7 +2294,7 @@ const styles = StyleSheet.create({
   },
   musicToggleGame: {
     position: 'absolute',
-    top: 58,
+    top: 10,
     right: 16,
     zIndex: 50,
   },
@@ -2069,26 +2346,19 @@ const styles = StyleSheet.create({
     width: '100%', paddingHorizontal: 16, paddingVertical: 10, marginBottom: 4, zIndex: 2,
   },
   backButton: {
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    minHeight: 54,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 27,
+    backgroundColor: '#FFFFFF',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.45)',
+    borderColor: '#D7E3FF',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#2A2A45',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-  },
-  backButtonText: {
-    color: '#5A3CA8',
-    fontSize: 19,
-    fontWeight: '900',
-    letterSpacing: 0.25,
+    elevation: 8,
+    shadowColor: '#1A2B66',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
   },
   statsRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   statPill: {
@@ -2096,6 +2366,71 @@ const styles = StyleSheet.create({
     borderRadius: 20, elevation: 3,
   },
   statPillText: { fontSize: 14, fontWeight: '800', color: '#FF6B35' },
+  levelHeaderCard: {
+    minWidth: 220,
+    maxWidth: 270,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+    elevation: 4,
+  },
+  levelHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  levelHeaderTierIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECF8EE',
+  },
+  levelHeaderTierIcon: {
+    fontSize: 20,
+  },
+  levelHeaderValueWrap: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  levelHeaderValueMain: {
+    color: '#2E7D32',
+    fontSize: 22,
+    lineHeight: 24,
+    fontWeight: '900',
+  },
+  levelHeaderValueSub: {
+    marginTop: 1,
+    color: '#53725A',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  levelHeaderBarTrack: {
+    marginTop: 8,
+    height: 12,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: '#D5E8D9',
+  },
+  levelHeaderBarFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+  },
+  levelHeaderProgressGlow: {
+    alignSelf: 'flex-end',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#F7FFF6',
+    marginRight: -1,
+  },
   headerTitle: { color: 'white', fontSize: 20, fontWeight: '900',
     textShadowColor: 'rgba(0,0,0,0.2)', textShadowRadius: 3 },
   // ── Reward popup ──
@@ -2112,7 +2447,17 @@ const styles = StyleSheet.create({
   },
   popupCloseBtnText: { fontSize: 16, color: '#E53935', fontWeight: '700' },
   popupPraiseText: { fontSize: 26, fontWeight: '900', color: '#333', marginTop: 8, textAlign: 'center' },
-  popupLevelText: { fontSize: 14, color: '#888', marginBottom: 4 },
+  popupLevelText: {
+    fontSize: 24,
+    color: '#4E5F52',
+    marginBottom: 4,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+    backgroundColor: '#F2FFF4',
+    borderRadius: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+  },
 
   // ── Win screen ──
   winCard: {
@@ -2501,6 +2846,25 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textAlign: 'center',
   },
+  gardenMissionStatsRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  gardenMissionStatChip: {
+    backgroundColor: '#E8F7EC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#B8E1C1',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  gardenMissionStatText: {
+    color: '#2D6D39',
+    fontSize: 15,
+    fontWeight: '900',
+  },
   gardenMissionSub: {
     marginTop: 4,
     color: '#3E6A43',
@@ -2701,8 +3065,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   countQuestionCard: {
-    marginHorizontal: 16,
-    marginTop: 8,
+    flex: 1,
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderRadius: 22,
     paddingVertical: 18,
@@ -2710,6 +3073,18 @@ const styles = StyleSheet.create({
   },
   countPlayContent: {
     flex: 1,
+    paddingBottom: 12,
+  },
+  countTopHalf: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 6,
+  },
+  countBottomHalf: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingTop: 6,
   },
   countQuestionTitle: {
     color: '#2E7D32',
@@ -2719,10 +3094,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   countEquationWrap: {
+    flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
+    minHeight: 0,
   },
   countItemCard: {
     backgroundColor: '#F5FFF7',
@@ -2730,12 +3107,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#BEE8C8',
     flex: 1,
-    minHeight: 152,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    minHeight: 0,
+    maxHeight: '100%',
+    alignSelf: 'stretch',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
+    overflow: 'hidden',
   },
   countItemNumber: {
     color: '#2E7D32',
@@ -2744,11 +3124,15 @@ const styles = StyleSheet.create({
     lineHeight: 44,
   },
   countEmojiRow: {
+    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 8,
-    minHeight: 78,
+    alignItems: 'center',
+    alignContent: 'center',
+    gap: 6,
+    minHeight: 82,
+    overflow: 'hidden',
   },
   countEmoji: {
     fontSize: 42,
@@ -2756,31 +3140,35 @@ const styles = StyleSheet.create({
   },
   countMathSign: {
     color: '#2E7D32',
-    fontSize: 46,
+    fontSize: 42,
     fontWeight: '900',
+    alignSelf: 'center',
+    textAlignVertical: 'center',
   },
   countResultWrap: {
-    minWidth: 38,
+    minWidth: 28,
+    maxHeight: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 2,
+    alignSelf: 'center',
   },
   countResultText: {
     color: '#2E7D32',
-    fontSize: 52,
+    fontSize: 54,
     fontWeight: '900',
-    lineHeight: 56,
-    marginTop: -8,
+    lineHeight: 58,
+    marginTop: -4,
   },
   countOptionsWrap: {
-    marginTop: 14,
-    marginHorizontal: 16,
+    flex: 1,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.28)',
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 10,
+    overflow: 'hidden',
   },
   countOptionsTitle: {
     color: 'white',
@@ -2793,6 +3181,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
+    alignContent: 'flex-start',
     gap: 10,
   },
   countOptionButton: {
@@ -2805,6 +3194,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 5,
+  },
+  countOptionButtonHalf: {
+    width: '47%',
+    minWidth: 110,
   },
   countOptionText: {
     color: '#2E7D32',
