@@ -1406,6 +1406,8 @@ const GARDEN_EXPAND_THRESHOLDS = [
 ];
 const GROW_PHASE_DURATION = 1200;
 const RIPE_PHASE_DURATION = 1200;
+/** Extra hit padding around each plot while dragging tools (forgiving for small fingers). */
+const GARDEN_PLOT_HIT_PAD = 16;
 
 const GARDEN_TOOLS = [
   { id: 'hoe',     emoji: '⛏️', label: 'Cuốc đất',  validState: 'empty' },
@@ -1417,7 +1419,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   const F = fontsLoaded ? 'Nunito_900Black' : undefined;
   const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
 
-  const plotSize = Math.min(104, Math.floor((SCREEN_WIDTH - 32 - 28) / 3));
+  const plotSize = Math.min(108, Math.floor((SCREEN_WIDTH - 48 - 24) / 3));
 
   // ── State ──
   const [plots, setPlots] = useState([]);
@@ -1443,15 +1445,33 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   // ── Stable refs for PanResponder closures ──
   const plotsRef = useRef([]);
   const hoveredPlotIdRef = useRef(null);
+  const lastToolPlotRef = useRef({ hoe: null, water: null, harvest: null });
   const handlersRef = useRef({});
 
   const initPlotAnim = useCallback((id, isNew = false) => {
-    if (plotAnimsRef.current[id]) return;
+    if (plotAnimsRef.current[id]) {
+      if (!plotAnimsRef.current[id].toolFlash) {
+        plotAnimsRef.current[id].toolFlash = new Animated.Value(1);
+      }
+      return;
+    }
     plotAnimsRef.current[id] = {
       grow:   new Animated.Value(1),
       appear: new Animated.Value(isNew ? 0 : 1),
+      toolFlash: new Animated.Value(1),
       timers: [],
     };
+  }, []);
+
+  const triggerPlotToolFeedback = useCallback((plotId) => {
+    const anim = plotAnimsRef.current[plotId];
+    if (!anim?.toolFlash) return;
+    anim.toolFlash.stopAnimation();
+    anim.toolFlash.setValue(1);
+    Animated.sequence([
+      Animated.spring(anim.toolFlash, { toValue: 1.1, useNativeDriver: true, bounciness: 12, speed: 16 }),
+      Animated.spring(anim.toolFlash, { toValue: 1, useNativeDriver: true, bounciness: 10, speed: 14 }),
+    ]).start();
   }, []);
 
   // ── Init plots ──
@@ -1516,6 +1536,32 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
     }
     playSound('tap');
   }, [playSound]);
+
+  const pickPlotUnderFinger = useCallback((pageX, pageY, validState) => {
+    const pad = GARDEN_PLOT_HIT_PAD;
+    const layouts = plotLayoutsRef.current;
+    let bestId = null;
+    let bestDist = Infinity;
+    for (const plot of plotsRef.current) {
+      if (plot.state !== validState) continue;
+      const layout = layouts[plot.id];
+      if (!layout?.width) continue;
+      const { x, y, width, height } = layout;
+      const cx = x + width / 2;
+      const cy = y + height / 2;
+      if (
+        pageX >= x - pad && pageX <= x + width + pad &&
+        pageY >= y - pad && pageY <= y + height + pad
+      ) {
+        const d = (pageX - cx) * (pageX - cx) + (pageY - cy) * (pageY - cy);
+        if (d < bestDist) {
+          bestDist = d;
+          bestId = plot.id;
+        }
+      }
+    }
+    return bestId;
+  }, []);
 
   const handleWater = useCallback((plotId) => {
     setPlots(prev => {
@@ -1595,7 +1641,14 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   }, [basketBounce, checkExpansion, flyAnimOp, flyAnimX, flyAnimY, playSound]);
 
   // ── Keep handlersRef current on every render (no hook needed) ──
-  handlersRef.current = { handlePlant, handleWater, handleHarvest, playSound };
+  handlersRef.current = {
+    handlePlant,
+    handleWater,
+    handleHarvest,
+    playSound,
+    pickPlotUnderFinger,
+    triggerPlotToolFeedback,
+  };
 
   // ── PanResponders (created once; use stable refs for callbacks) ──
   const panRespondersRef = useRef(null);
@@ -1610,6 +1663,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
           dragFloatX.setValue(pageX - 32);
           dragFloatY.setValue(pageY - 32);
           dragFloatScale.setValue(0);
+          lastToolPlotRef.current[toolId] = null;
           setDragTool(toolId);
           Animated.spring(dragFloatScale, {
             toValue: 1.2, useNativeDriver: true, bounciness: 14, speed: 18,
@@ -1620,53 +1674,39 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
           const { pageX, pageY } = evt.nativeEvent;
           dragFloatX.setValue(pageX - 32);
           dragFloatY.setValue(pageY - 32);
-          let newHovered = null;
-          for (const [idStr, layout] of Object.entries(plotLayoutsRef.current)) {
-            const id = parseInt(idStr, 10);
-            if (
-              pageX >= layout.x && pageX <= layout.x + layout.width &&
-              pageY >= layout.y && pageY <= layout.y + layout.height
-            ) {
-              const plot = plotsRef.current.find(p => p.id === id);
-              if (plot && plot.state === validState) { newHovered = id; break; }
-            }
-          }
+          const newHovered = handlersRef.current.pickPlotUnderFinger(pageX, pageY, validState);
           if (newHovered !== hoveredPlotIdRef.current) {
             hoveredPlotIdRef.current = newHovered;
             setHoveredPlotId(newHovered);
           }
+          if (newHovered == null) {
+            lastToolPlotRef.current[toolId] = null;
+            return;
+          }
+          if (lastToolPlotRef.current[toolId] === newHovered) return;
+          lastToolPlotRef.current[toolId] = newHovered;
+          handlersRef.current.triggerPlotToolFeedback(newHovered);
+          if (toolId === 'hoe') handlersRef.current.handlePlant(newHovered);
+          else if (toolId === 'water') handlersRef.current.handleWater(newHovered);
+          else {
+            const plot = plotsRef.current.find(p => p.id === newHovered);
+            if (plot) handlersRef.current.handleHarvest(plot);
+          }
         },
-        onPanResponderRelease: (evt) => {
-          const { pageX, pageY } = evt.nativeEvent;
-          let matchedPlot = null;
-          for (const [idStr, layout] of Object.entries(plotLayoutsRef.current)) {
-            const id = parseInt(idStr, 10);
-            if (
-              pageX >= layout.x && pageX <= layout.x + layout.width &&
-              pageY >= layout.y && pageY <= layout.y + layout.height
-            ) {
-              const plot = plotsRef.current.find(p => p.id === id);
-              if (plot && plot.state === validState) { matchedPlot = plot; break; }
-            }
-          }
-          if (matchedPlot) {
-            if (toolId === 'hoe') handlersRef.current.handlePlant(matchedPlot.id);
-            else if (toolId === 'water') handlersRef.current.handleWater(matchedPlot.id);
-            else handlersRef.current.handleHarvest(matchedPlot);
-          } else {
-            handlersRef.current.playSound('wrong');
-          }
+        onPanResponderRelease: () => {
           Animated.spring(dragFloatScale, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 4 }).start(() => {
             setDragTool(null);
           });
           hoveredPlotIdRef.current = null;
           setHoveredPlotId(null);
+          lastToolPlotRef.current[toolId] = null;
         },
         onPanResponderTerminate: () => {
           dragFloatScale.setValue(0);
           setDragTool(null);
           hoveredPlotIdRef.current = null;
           setHoveredPlotId(null);
+          lastToolPlotRef.current[toolId] = null;
         },
       });
     };
@@ -1687,11 +1727,11 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   };
 
   const getPlotGradient = (plot) => {
-    if (plot.state === 'empty') return ['#8B5E3C', '#A0714F'];
-    if (plot.state === 'planted') return ['#F5F0DC', '#FEF9E7'];
-    if (plot.state === 'growing') return ['#DCFCE7', '#BBF7D0'];
+    if (plot.state === 'empty') return [FARM.subtitleColor, FARM.playButtonShadow];
+    if (plot.state === 'planted') return [FARM.cardFront, FARM.cardFrontBorder];
+    if (plot.state === 'growing') return [FARM.cardMatched, FARM.grassLight];
     if (plot.state === 'ripe') return [FARM.cardMatched, FARM.hillColor];
-    return ['#8B5E3C', '#A0714F'];
+    return [FARM.subtitleColor, FARM.playButtonShadow];
   };
 
   return (
@@ -1727,64 +1767,71 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
       {/* Instruction strip */}
       <View style={styles.gardenInstructionRow}>
         <Text style={[styles.gardenInstructionText, { fontFamily: F8 }]}>
-          Kéo dụng cụ vào ô đất để cuốc · tưới · thu hoạch
+          Kéo dụng cụ trên ruộng — cứ lướt qua từng ô, vườn tự làm theo ý bé
         </Text>
       </View>
 
-      {/* Plot grid */}
-      <View style={styles.gardenPlotGrid}>
-        {plots.map(plot => {
-          const anim = plotAnimsRef.current[plot.id];
-          const scaleTransform = anim
-            ? [{ scale: anim.appear }, { scale: anim.grow }]
-            : [];
-          const emoji = getPlotEmoji(plot);
-          const isHovered = hoveredPlotId === plot.id;
-          return (
-            <Animated.View
-              key={plot.id}
-              style={[styles.gardenPlotWrap, { transform: scaleTransform }]}
-            >
-              <View
-                ref={ref => { plotRefs.current[plot.id] = ref; }}
-                onLayout={(e) => {
-                  const layout = e.nativeEvent.layout;
-                  if (plotRefs.current[plot.id]) {
-                    plotRefs.current[plot.id].measureInWindow((x, y, w, h) => {
-                      plotLayoutsRef.current[plot.id] = { x, y, width: w, height: h };
-                    });
-                  } else {
-                    plotLayoutsRef.current[plot.id] = layout;
-                  }
-                }}
+      {/* Plot grid — one cohesive “field patch” */}
+      <View style={styles.gardenFieldPatch}>
+        <View style={styles.gardenPlotGrid}>
+          {plots.map(plot => {
+            const anim = plotAnimsRef.current[plot.id];
+            const scaleTransform = anim
+              ? [{ scale: anim.appear }, { scale: anim.grow }, { scale: anim.toolFlash }]
+              : [];
+            const emoji = getPlotEmoji(plot);
+            const isHovered = hoveredPlotId === plot.id;
+            return (
+              <Animated.View
+                key={plot.id}
+                style={[styles.gardenPlotWrap, { transform: scaleTransform, minWidth: plotSize, minHeight: plotSize }]}
               >
-                <LinearGradient
-                  colors={getPlotGradient(plot)}
-                  style={[
-                    styles.gardenPlot,
-                    { width: plotSize, height: plotSize },
-                    plot.state === 'empty' && styles.gardenPlotEmpty,
-                    isHovered && styles.gardenPlotHovered,
-                  ]}
+                <View
+                  ref={ref => { plotRefs.current[plot.id] = ref; }}
+                  onLayout={(e) => {
+                    const layout = e.nativeEvent.layout;
+                    if (plotRefs.current[plot.id]) {
+                      plotRefs.current[plot.id].measureInWindow((x, y, w, h) => {
+                        plotLayoutsRef.current[plot.id] = { x, y, width: w, height: h };
+                      });
+                    } else {
+                      plotLayoutsRef.current[plot.id] = layout;
+                    }
+                  }}
                 >
-                  {emoji ? (
-                    <Text style={styles.gardenPlotEmoji}>{emoji}</Text>
-                  ) : null}
-                  {plot.state === 'ripe' && (
-                    <View style={styles.gardenRipeBadge}>
-                      <Text style={styles.gardenRipeBadgeText}>✓</Text>
-                    </View>
-                  )}
-                  {plot.state === 'growing' && (
-                    <View style={styles.gardenGrowingBadge}>
-                      <Text style={styles.gardenGrowingBadgeText}>💧</Text>
-                    </View>
-                  )}
-                </LinearGradient>
-              </View>
-            </Animated.View>
-          );
-        })}
+                  <LinearGradient
+                    colors={getPlotGradient(plot)}
+                    style={[
+                      styles.gardenPlot,
+                      { width: plotSize, height: plotSize },
+                      plot.state === 'empty' && styles.gardenPlotEmpty,
+                      isHovered && styles.gardenPlotHovered,
+                    ]}
+                  >
+                    {emoji ? (
+                      <Text style={styles.gardenPlotEmoji}>{emoji}</Text>
+                    ) : null}
+                    {plot.state === 'planted' && (
+                      <View style={styles.gardenNeedWaterBadge}>
+                        <Text style={styles.gardenNeedWaterBadgeText}>💧</Text>
+                      </View>
+                    )}
+                    {plot.state === 'ripe' && (
+                      <View style={styles.gardenRipeBadge}>
+                        <Text style={styles.gardenRipeBadgeText}>✓</Text>
+                      </View>
+                    )}
+                    {plot.state === 'growing' && (
+                      <View style={styles.gardenGrowingBadge}>
+                        <Text style={styles.gardenGrowingBadgeText}>✨</Text>
+                      </View>
+                    )}
+                  </LinearGradient>
+                </View>
+              </Animated.View>
+            );
+          })}
+        </View>
       </View>
 
       {/* Tool tray */}
@@ -3120,22 +3167,34 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
   },
+  gardenFieldPatch: {
+    flex: 1,
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 4,
+    borderRadius: 24,
+    borderWidth: 3,
+    borderColor: FARM.grassDark,
+    backgroundColor: FARM.grassMid,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    ...SHADOWS.card,
+  },
   gardenPlotGrid: {
     flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignContent: 'center',
-    gap: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: 6,
+    rowGap: 6,
   },
   gardenPlotWrap: {
-    borderRadius: 20,
-    ...SHADOWS.button,
+    borderRadius: 18,
+    ...SHADOWS.card,
   },
   gardenPlot: {
-    borderRadius: 20,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -3144,10 +3203,27 @@ const styles = StyleSheet.create({
   },
   gardenPlotEmpty: {
     borderStyle: 'dashed',
-    borderColor: '#A0714F',
+    borderColor: FARM.grassLight,
+    borderWidth: 2,
   },
   gardenPlotEmoji: {
     fontSize: 52,
+  },
+  gardenNeedWaterBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: FARM.skyGradient[1],
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: FARM.cardHintBorder,
+  },
+  gardenNeedWaterBadgeText: {
+    fontSize: 14,
   },
   gardenRipeBadge: {
     position: 'absolute',
@@ -3220,6 +3296,11 @@ const styles = StyleSheet.create({
   gardenPlotHovered: {
     borderWidth: 3,
     borderColor: FARM.cardHintBorder,
+    shadowColor: FARM.cardHintBorder,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 10,
+    elevation: 8,
   },
   gardenDragFloat: {
     position: 'absolute',
