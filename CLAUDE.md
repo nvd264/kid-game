@@ -1,0 +1,42 @@
+# Kid Game — Project Rules for AI
+
+## UI Theme
+
+**Read `/THEME_RULES.md` before writing or editing any UI code.**
+All screens, components, colors, shadows, and animations must follow the rules defined there.
+The design token source of truth is `/theme.js` (`FARM` and `SHADOWS` exports).
+
+## Project Structure
+
+- `App.js` — single-file app (~3900 lines). All games and components live here.
+- `theme.js` — shared design tokens (`FARM`, `SHADOWS`). Import in App.js.
+- `THEME_RULES.md` — mandatory UI rules for every AI working on this project.
+- `assets/sounds/` — all audio files (background, SFX, animal sounds)
+- `assets/ui/` — UI image assets (e.g. hand-pointer.png)
+
+## Games
+
+| Internal key | Vietnamese name | Component |
+|---|---|---|
+| `memory` | Tìm Cặp | `MemoryGame` |
+| `puzzle` | Đếm Hình | `PuzzleGame` |
+| `garden` | Vườn Thu Hoạch | `GardenHarvestGame` |
+| `letter` | Học Chữ Cái | `LetterGame` |
+
+## Tech Stack
+
+- React Native + Expo (managed workflow)
+- `expo-linear-gradient` for gradients
+- `expo-av` for audio
+- `@expo-google-fonts/nunito` — Nunito_700Bold, 800ExtraBold, 900Black
+- `@expo/vector-icons` Ionicons
+- `react-native-gesture-handler` for drag interactions
+- EAS for builds
+
+## Code Rules
+
+- Do not split App.js into multiple files unless the user explicitly asks.
+- Do not add new dependencies without asking the user.
+- All new styles go inside the single `StyleSheet.create({})` at the bottom of App.js.
+- Animation: always `useNativeDriver: true`. Buttons use `AnimatedPressable` (spring scale).
+- Language: UI text is Vietnamese. Do not change display text to English.
