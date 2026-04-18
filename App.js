@@ -1432,7 +1432,7 @@ const GARDEN_TOOLS = [
   { id: 'harvest', label: 'Thu hoạch',  validState: 'ripe',    icon: 'basket', color: FARM.playButtonShadow },
 ];
 
-const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
+const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicEnabled }) => {
   const F = fontsLoaded ? 'Nunito_900Black' : undefined;
   const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
   const { width: winW, height: winH } = useWindowDimensions();
@@ -1969,6 +1969,14 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
 
   const gardenDockBlock = (
     <View style={[styles.gardenDockColumn, { width: gardenDockWidth }]}>
+      {/* Close button */}
+      <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
+        <View style={styles.farmCloseButton}>
+          <Ionicons name="close" size={22} color="#FFFFFF" />
+        </View>
+      </AnimatedPressable>
+
+      {/* 3 tool buttons */}
       {GARDEN_TOOLS.map(tool => {
         const isSelected = tool.id === selectedToolId;
         return (
@@ -1996,6 +2004,35 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
           </AnimatedPressable>
         );
       })}
+
+      {/* Basket count + music toggle */}
+      <View style={styles.gardenDockBottomRow}>
+        <Animated.View
+          ref={basketRef}
+          onLayout={() => {
+            if (basketRef.current) {
+              basketRef.current.measureInWindow((x, y, w, h) => {
+                basketLayoutRef.current = { x, y, width: w, height: h };
+              });
+            }
+          }}
+          style={[styles.gardenDockBasket, { transform: [{ scale: basketBounce }] }]}
+        >
+          <MaterialCommunityIcons name="basket" size={20} color={FARM.playButtonShadow} />
+          <Text style={[styles.gardenDockBasketCount, { fontFamily: F8 }]}>{totalHarvested}</Text>
+        </Animated.View>
+        {toggleMusic != null && (
+          <TouchableOpacity onPress={toggleMusic} activeOpacity={0.9}>
+            <View style={[styles.farmGearButton, !musicEnabled && styles.musicToggleDimmed]}>
+              <Ionicons
+                name={musicEnabled ? 'musical-notes' : 'volume-mute'}
+                size={20}
+                color={FARM.playButtonText}
+              />
+            </View>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 
@@ -2046,38 +2083,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   const gardenGradientInner = (
     <View style={styles.gardenRootLandscape}>
       <StatusBar barStyle="dark-content" />
-
-      {/* Floating X close button — top-left overlay */}
-      <AnimatedPressable
-        onPress={() => { playSound('tap'); onExit(); }}
-        style={styles.gardenFloatingClose}
-      >
-        <View style={styles.farmCloseButton}>
-          <Ionicons name="close" size={22} color="#FFFFFF" />
-        </View>
-      </AnimatedPressable>
-
-      {/* Floating basket counter — top-right overlay */}
-      <Animated.View
-        ref={basketRef}
-        onLayout={() => {
-          if (basketRef.current) {
-            basketRef.current.measureInWindow((x, y, w, h) => {
-              basketLayoutRef.current = { x, y, width: w, height: h };
-            });
-          }
-        }}
-        style={[styles.gardenFloatingBasket, { transform: [{ scale: basketBounce }] }]}
-      >
-        <MaterialCommunityIcons name="basket" size={26} color={FARM.playButtonShadow} />
-        <Text style={[styles.gardenBasketCount, { fontFamily: F8 }]}>{totalHarvested}</Text>
-      </Animated.View>
-
       <View style={styles.gardenLandscapeRow}>
         {gardenFieldBlock}
         {gardenDockBlock}
       </View>
-
       {gardenFlyAndDrag}
     </View>
   );
@@ -2702,12 +2711,12 @@ export default function App() {
     let gameScreen = null;
     if (currentGame === 'memory')   gameScreen = <MemoryGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
     if (currentGame === 'puzzle')   gameScreen = <PuzzleGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
-    if (currentGame === 'garden')   gameScreen = <GardenHarvestGame  playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
+    if (currentGame === 'garden')   gameScreen = <GardenHarvestGame  playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} toggleMusic={toggleMusic} musicEnabled={musicEnabled} />;
     if (currentGame === 'letter')   gameScreen = <LetterGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
     return (
       <View style={{ flex: 1 }}>
         {gameScreen}
-        {renderMusicToggle(styles.musicToggleGame)}
+        {currentGame !== 'garden' && renderMusicToggle(styles.musicToggleGame)}
       </View>
     );
   }
@@ -3363,11 +3372,33 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   gardenDockColumn: {
-    justifyContent: 'center',
+    flex: 1,
+    justifyContent: 'space-evenly',
     alignItems: 'center',
-    paddingLeft: 4,
-    paddingRight: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  gardenDockBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
+  },
+  gardenDockBasket: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: FARM.cardMatched,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: FARM.cardMatchedBorder,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    gap: 4,
+    ...SHADOWS.header,
+  },
+  gardenDockBasketCount: {
+    color: FARM.subtitleColor,
+    fontSize: 16,
+    fontWeight: '900',
   },
   gardenToolBtn: {
     width: 72,
