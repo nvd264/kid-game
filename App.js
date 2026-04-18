@@ -1440,7 +1440,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const landscapeW = Math.max(winW, winH);
   const landscapeH = Math.min(winW, winH);
 
-  const plotGap = 8;
+  /** Near-flush tiles; hit-test uses math on this stride (not measureInWindow). */
+  const plotGap = 1;
   const gardenDockWidth = 116;
   const plotSize = useMemo(() => {
     const cols = GARDEN_GRID_COLS;
@@ -1566,6 +1567,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     playSound('tap');
   }, [playSound]);
 
+  /** Page-space hit test (FAB drag from outside the grid). */
   const pickPlotUnderFinger = useCallback((pageX, pageY, validState) => {
     const pad = GARDEN_PLOT_HIT_PAD;
     const layouts = plotLayoutsRef.current;
@@ -1592,6 +1594,24 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     }
     return bestId;
   }, []);
+
+  /** Coordinates relative to the grid hit-area view (same box as row layout). */
+  const pickPlotFromLocalXY = useCallback((localX, localY, validState) => {
+    const stride = plotSize + plotGap;
+    if (stride <= 0) return null;
+    if (localX < 0 || localY < 0) return null;
+    const col = Math.floor(localX / stride);
+    const row = Math.floor(localY / stride);
+    if (col < 0 || col >= GARDEN_GRID_COLS || row < 0 || row >= GARDEN_GRID_ROWS) return null;
+    const inCellX = localX - col * stride;
+    const inCellY = localY - row * stride;
+    if (inCellX > plotSize || inCellY > plotSize) return null;
+    const plotId = row * GARDEN_GRID_COLS + col;
+    if (!gardenPlotIsActive(plotId)) return null;
+    const plot = plotsRef.current.find(p => p.id === plotId);
+    if (!plot || plot.state !== validState) return null;
+    return plotId;
+  }, [plotSize, plotGap]);
 
   const handleWater = useCallback((plotId) => {
     if (!gardenPlotIsActive(plotId)) return;
@@ -1751,7 +1771,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     playSound('tap');
   }, [playSound]);
 
-  /** Tap on a specific plot — avoids measureInWindow / hit-test drift from a field-level PanResponder. */
   const applyToolToPlotId = useCallback((plotId) => {
     if (!gardenPlotIsActive(plotId)) return;
     const toolId = selectedToolIdRef.current;
@@ -1764,11 +1783,19 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     else handlersRef.current.handleHarvest(plot);
   }, []);
 
-  // ── Drag on field: same as applyToolAt but skips already-processed plots ──
-  const applyDragAt = useCallback((pageX, pageY) => {
+  const applyToolAtLocal = useCallback((localX, localY) => {
     const toolId = selectedToolIdRef.current;
     const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
-    const plotId = handlersRef.current.pickPlotUnderFinger(pageX, pageY, validState);
+    const plotId = handlersRef.current.pickPlotFromLocalXY(localX, localY, validState);
+    if (plotId == null) return;
+    handlersRef.current.applyToolToPlotId(plotId);
+  }, []);
+
+  // ── Drag on field: same tool rules as tap but skips already-processed plots ──
+  const applyDragAtLocal = useCallback((localX, localY) => {
+    const toolId = selectedToolIdRef.current;
+    const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
+    const plotId = handlersRef.current.pickPlotFromLocalXY(localX, localY, validState);
     if (plotId == null) { lastToolPlotRef.current[toolId] = null; return; }
     if (lastToolPlotRef.current[toolId] === plotId) return;
     lastToolPlotRef.current[toolId] = plotId;
@@ -1793,28 +1820,43 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     handleHarvest,
     playSound,
     pickPlotUnderFinger,
+    pickPlotFromLocalXY,
     triggerPlotToolFeedback,
     applyToolToPlotId,
-    applyDragAt,
+    applyToolAtLocal,
+    applyDragAtLocal,
     resetFieldDrag,
   };
 
   const gardenFieldTapRef = useRef(null);
   if (!gardenFieldTapRef.current) {
-    const moveSlop = (_, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6;
+    const slop = 10;
+    const fieldDragStartRef = { x: 0, y: 0 };
     gardenFieldTapRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: moveSlop,
-      onMoveShouldSetPanResponderCapture: moveSlop,
-      onPanResponderGrant: () => {
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        const { locationX, locationY } = evt.nativeEvent;
+        fieldDragStartRef.x = locationX;
+        fieldDragStartRef.y = locationY;
         handlersRef.current.resetFieldDrag?.();
       },
       onPanResponderMove: (evt) => {
-        const { pageX, pageY } = evt.nativeEvent;
-        handlersRef.current.applyDragAt?.(pageX, pageY);
+        const { locationX, locationY } = evt.nativeEvent;
+        handlersRef.current.applyDragAtLocal?.(locationX, locationY);
       },
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (evt) => {
+        const { locationX, locationY } = evt.nativeEvent;
+        const dx = locationX - fieldDragStartRef.x;
+        const dy = locationY - fieldDragStartRef.y;
+        const toolId = selectedToolIdRef.current;
+        if (
+          dx * dx + dy * dy < slop * slop &&
+          lastToolPlotRef.current[toolId] == null
+        ) {
+          handlersRef.current.applyToolAtLocal?.(locationX, locationY);
+        }
         handlersRef.current.resetFieldDrag?.();
       },
       onPanResponderTerminate: () => {
@@ -1939,18 +1981,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           { transform: scaleTransform, width: plotSize, height: plotSize },
         ]}
       >
-        {isLocked ? (
-          plotMeasureShell
-        ) : (
-          <TouchableOpacity
-            activeOpacity={0.92}
-            delayPressIn={0}
-            onPress={() => handlersRef.current.applyToolToPlotId?.(plot.id)}
-            style={styles.gardenPlotTouchable}
-          >
-            {plotMeasureShell}
-          </TouchableOpacity>
-        )}
+        {plotMeasureShell}
       </Animated.View>
     );
   };
@@ -1961,23 +1992,33 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     [plots],
   );
 
+  const gardenGridHitSize = useMemo(() => ({
+    width: GARDEN_GRID_COLS * plotSize + (GARDEN_GRID_COLS - 1) * plotGap,
+    height: GARDEN_GRID_ROWS * plotSize + (GARDEN_GRID_ROWS - 1) * plotGap,
+  }), [plotSize, plotGap]);
+
   const gardenFieldBlock = (
-    <View style={[styles.gardenFieldPatch, styles.gardenFieldPressable]} {...gardenFieldTapRef.current.panHandlers}>
+    <View style={[styles.gardenFieldPatch, styles.gardenFieldPressable]}>
       <View style={styles.gardenPlotGridColumn}>
-        {gardenGridRows.map((rowPlots, rowIdx) => (
-          <View key={`garden-row-${rowIdx}`} style={[styles.gardenGridRow, { gap: plotGap, marginBottom: plotGap }]}>
-            {rowIdx < GARDEN_ACTIVE_ROWS ? (
-              <>
-                <View style={styles.gardenActiveCluster}>
-                  {rowPlots.slice(0, GARDEN_ACTIVE_COLS).map(p => renderGardenCell(p, false))}
-                </View>
-                {rowPlots.slice(GARDEN_ACTIVE_COLS).map(p => renderGardenCell(p, true))}
-              </>
-            ) : (
-              rowPlots.map(p => renderGardenCell(p, true))
-            )}
-          </View>
-        ))}
+        <View
+          style={[styles.gardenGridHitArea, gardenGridHitSize]}
+          {...gardenFieldTapRef.current.panHandlers}
+        >
+          {gardenGridRows.map((rowPlots, rowIdx) => (
+            <View key={`garden-row-${rowIdx}`} style={[styles.gardenGridRow, { gap: plotGap, marginBottom: rowIdx < GARDEN_GRID_ROWS - 1 ? plotGap : 0 }]}>
+              {rowIdx < GARDEN_ACTIVE_ROWS ? (
+                <>
+                  <View style={[styles.gardenActiveCluster, { gap: plotGap }]}>
+                    {rowPlots.slice(0, GARDEN_ACTIVE_COLS).map(p => renderGardenCell(p, false))}
+                  </View>
+                  {rowPlots.slice(GARDEN_ACTIVE_COLS).map(p => renderGardenCell(p, true))}
+                </>
+              ) : (
+                rowPlots.map(p => renderGardenCell(p, true))
+              )}
+            </View>
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -3534,6 +3575,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  gardenGridHitArea: {
+    alignSelf: 'center',
+  },
   gardenGridRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3548,10 +3592,6 @@ const styles = StyleSheet.create({
   gardenPlotWrap: {
     borderRadius: 18,
     ...SHADOWS.card,
-  },
-  gardenPlotTouchable: {
-    flex: 1,
-    borderRadius: 18,
   },
   gardenPlotWrapLocked: {
     shadowOpacity: 0.12,
