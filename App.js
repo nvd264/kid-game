@@ -1408,11 +1408,11 @@ const GARDEN_CROPS = [
   { name: 'Xà lách',    ripeArt: require('./assets/ui/garden/crop-lettuce.png') },
 ];
 /** Large preview grid; only the first ACTIVE zone (2×3) accepts tools. */
-const GARDEN_GRID_COLS = 5;
-const GARDEN_GRID_ROWS = 4;
+const GARDEN_GRID_COLS = 7;
+const GARDEN_GRID_ROWS = 5;
 const GARDEN_GRID_TOTAL = GARDEN_GRID_COLS * GARDEN_GRID_ROWS;
-const GARDEN_ACTIVE_COLS = 3;
-const GARDEN_ACTIVE_ROWS = 2;
+const GARDEN_ACTIVE_COLS = 4;
+const GARDEN_ACTIVE_ROWS = 3;
 const GARDEN_ACTIVE_COUNT = GARDEN_ACTIVE_COLS * GARDEN_ACTIVE_ROWS;
 
 const gardenPlotIsActive = (plotId) => {
@@ -1446,14 +1446,12 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
     const cols = GARDEN_GRID_COLS;
     const rows = GARDEN_GRID_ROWS;
     const fieldPadX = 12;
-    const headerH = 52;
-    const instructH = 40;
     const bottomPad = 8;
     const availW = landscapeW - gardenDockWidth - fieldPadX * 2;
-    const availH = landscapeH - headerH - instructH - bottomPad;
+    const availH = landscapeH - bottomPad;
     const wCell = (availW - plotGap * (cols - 1)) / cols;
     const hCell = (availH - plotGap * (rows - 1)) / rows;
-    return Math.max(64, Math.min(108, Math.floor(Math.min(wCell, hCell))));
+    return Math.max(56, Math.min(88, Math.floor(Math.min(wCell, hCell))));
   }, [landscapeW, landscapeH, plotGap, gardenDockWidth]);
 
   // ── State ──
@@ -1463,8 +1461,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   const [dragTool, setDragTool] = useState(null);
   const [hoveredPlotId, setHoveredPlotId] = useState(null);
   const [selectedToolId, setSelectedToolId] = useState('hoe');
-  const [actionMenuOpen, setActionMenuOpen] = useState(false);
-  const actionMenuOpenRef = useRef(false);
 
   // ── Anim refs ──
   const plotAnimsRef = useRef({});
@@ -1486,8 +1482,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   const lastToolPlotRef = useRef({ hoe: null, water: null, harvest: null });
   const selectedToolIdRef = useRef('hoe');
   const handlersRef = useRef({});
-  const menuOpacity = useRef(new Animated.Value(0)).current;
-  const menuScale = useRef(new Animated.Value(0.6)).current;
   const dragFromFabRef = useRef(false);
 
   const initPlotAnim = useCallback((id) => {
@@ -1675,7 +1669,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   }, [basketBounce, flyAnimOp, flyAnimX, flyAnimY, playSound]);
 
   // ── Single main FAB: tap toggles radial menu; drag applies selected tool ──
-  const menuFabUiRef = useRef({ closeActionMenu: () => {}, toggleActionMenuFromTap: () => {} });
+  const cycleToolRef = useRef(() => {});
   const gardenMainFabPanRef = useRef(null);
   if (!gardenMainFabPanRef.current) {
     gardenMainFabPanRef.current = PanResponder.create({
@@ -1694,10 +1688,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
         const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
         if (dist > 10 && !dragFromFabRef.current) {
           dragFromFabRef.current = true;
-          actionMenuOpenRef.current = false;
-          setActionMenuOpen(false);
-          menuOpacity.setValue(0);
-          menuScale.setValue(0.6);
           lastToolPlotRef.current[toolId] = null;
           setDragTool(toolId);
           Animated.spring(dragFloatScale, {
@@ -1730,7 +1720,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
       },
       onPanResponderRelease: () => {
         if (!dragFromFabRef.current) {
-          menuFabUiRef.current.toggleActionMenuFromTap();
+          cycleToolRef.current();
         } else {
           Animated.spring(dragFloatScale, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 4 }).start(() => {
             setDragTool(null);
@@ -1752,37 +1742,14 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
     });
   }
 
-  const openActionMenu = useCallback(() => {
-    actionMenuOpenRef.current = true;
-    setActionMenuOpen(true);
-    menuOpacity.setValue(0);
-    menuScale.setValue(0.5);
-    Animated.parallel([
-      Animated.spring(menuOpacity, { toValue: 1, useNativeDriver: true, bounciness: 8, speed: 14 }),
-      Animated.spring(menuScale, { toValue: 1, useNativeDriver: true, bounciness: 10, speed: 12 }),
-    ]).start();
-  }, [menuOpacity, menuScale]);
-
-  const closeActionMenu = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(menuOpacity, { toValue: 0, duration: 160, useNativeDriver: true }),
-      Animated.timing(menuScale, { toValue: 0.6, duration: 160, useNativeDriver: true }),
-    ]).start(() => {
-      actionMenuOpenRef.current = false;
-      setActionMenuOpen(false);
-    });
-  }, [menuOpacity, menuScale]);
-
-  const toggleActionMenuFromTap = useCallback(() => {
-    if (actionMenuOpenRef.current) closeActionMenu();
-    else openActionMenu();
-  }, [closeActionMenu, openActionMenu]);
-
-  const selectToolFromMenu = useCallback((toolId) => {
-    setSelectedToolId(toolId);
+  const cycleTool = useCallback(() => {
+    const currentIdx = GARDEN_TOOLS.findIndex(t => t.id === selectedToolIdRef.current);
+    const nextIdx = (currentIdx + 1) % GARDEN_TOOLS.length;
+    const nextId = GARDEN_TOOLS[nextIdx].id;
+    setSelectedToolId(nextId);
+    selectedToolIdRef.current = nextId;
     playSound('tap');
-    closeActionMenu();
-  }, [closeActionMenu, playSound]);
+  }, [playSound]);
 
   // ── Tap on field: apply selected tool to plot under finger (active tiles only) ──
   const applyToolAt = useCallback((pageX, pageY) => {
@@ -1799,7 +1766,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
     }
   }, []);
 
-  menuFabUiRef.current = { closeActionMenu, toggleActionMenuFromTap };
+  cycleToolRef.current = cycleTool;
 
   handlersRef.current = {
     handlePlant,
@@ -1836,13 +1803,13 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
     return [FARM.subtitleColor, FARM.playButtonShadow];
   };
 
-  /** Dull “dry field” look for locked tiles (still readable for kids). */
+  /** Appealing pastels for locked tiles — distinct from active zone without being dull. */
   const getPlotGradientLocked = (plot) => {
-    if (plot.state === 'empty') return [FARM.cardFrontBorder, FARM.bodyText];
-    if (plot.state === 'planted') return ['#E7E5E4', '#D6D3D1'];
-    if (plot.state === 'growing') return ['#D1D5DB', '#9CA3AF'];
-    if (plot.state === 'ripe') return ['#D1FAE5', '#A7F3D0'];
-    return [FARM.cardFrontBorder, FARM.bodyText];
+    if (plot.state === 'empty')   return ['#E8F5E9', '#C8E6C9'];  // soft sage green
+    if (plot.state === 'planted') return ['#F3E5F5', '#E1BEE7'];  // soft lavender
+    if (plot.state === 'growing') return ['#E3F2FD', '#BBDEFB'];  // soft sky blue
+    if (plot.state === 'ripe')    return ['#FFF8E1', '#FFECB3'];  // warm golden
+    return ['#E8F5E9', '#C8E6C9'];
   };
 
   const plotIconLockedColor = FARM.bodyText;
@@ -1946,14 +1913,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
     [plots],
   );
 
-  const RADIAL_R = 86;
-  const radialAngles = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6];
-  const FAB_ARENA = 200;
-  const FAB_MAIN = 80;
-  const FAB_SAT = 56;
-  const fabMainLeft = (FAB_ARENA - FAB_MAIN) / 2;
-  const fabMainTop = (FAB_ARENA - FAB_MAIN) / 2;
-
   const gardenFieldBlock = (
     <View style={[styles.gardenFieldPatch, styles.gardenFieldPressable]} {...gardenFieldTapRef.current.panHandlers}>
       <View style={styles.gardenPlotGridColumn}>
@@ -1979,47 +1938,16 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
 
   const gardenDockBlock = (
     <View style={[styles.gardenDockColumn, { width: gardenDockWidth }]}>
-      <View style={[styles.gardenFabArena, { width: FAB_ARENA, height: FAB_ARENA }]} pointerEvents="box-none">
-        {actionMenuOpen
-          ? GARDEN_TOOLS.map((tool, idx) => {
-            const a = radialAngles[idx];
-            const cx = FAB_ARENA / 2 + Math.cos(a) * RADIAL_R - FAB_SAT / 2;
-            const cy = FAB_ARENA / 2 + Math.sin(a) * RADIAL_R - FAB_SAT / 2;
-            return (
-              <Animated.View
-                key={tool.id}
-                style={[
-                  styles.gardenRadialSatelliteWrap,
-                  {
-                    left: cx,
-                    top: cy,
-                    width: FAB_SAT,
-                    opacity: menuOpacity,
-                    transform: [{ scale: menuScale }],
-                  },
-                ]}
-              >
-                <AnimatedPressable onPress={() => selectToolFromMenu(tool.id)}>
-                  <LinearGradient colors={FARM.playButtonGradient} style={styles.gardenRadialSatellite}>
-                    <MaterialCommunityIcons name={tool.icon} size={28} color={tool.color} />
-                  </LinearGradient>
-                  <Text style={[styles.gardenRadialLabel, { fontFamily: F8 }]} numberOfLines={1}>{tool.label}</Text>
-                </AnimatedPressable>
-              </Animated.View>
-            );
-          })
-          : null}
-        <View
-          style={[styles.gardenMainFabAnchor, { left: fabMainLeft, top: fabMainTop, width: FAB_MAIN, height: FAB_MAIN }]}
-          {...gardenMainFabPanRef.current.panHandlers}
-        >
-          <LinearGradient colors={FARM.playButtonGradient} style={styles.gardenMainFab}>
-            <MaterialCommunityIcons name={selectedToolDef.icon} size={40} color={selectedToolDef.color} />
-          </LinearGradient>
-          <Text style={[styles.gardenMainFabHint, { fontFamily: F8 }]} numberOfLines={1}>
-            {actionMenuOpen ? 'Chọn' : 'Chạm mở'}
-          </Text>
-        </View>
+      <View
+        style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}
+        {...gardenMainFabPanRef.current.panHandlers}
+      >
+        <LinearGradient colors={FARM.playButtonGradient} style={styles.gardenMainFab}>
+          <MaterialCommunityIcons name={selectedToolDef.icon} size={40} color={selectedToolDef.color} />
+        </LinearGradient>
+        <Text style={[styles.gardenMainFabHint, { fontFamily: F8 }]} numberOfLines={1}>
+          {selectedToolDef.label}
+        </Text>
       </View>
     </View>
   );
@@ -2071,36 +1999,32 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   const gardenGradientInner = (
     <View style={styles.gardenRootLandscape}>
       <StatusBar barStyle="dark-content" />
-      <View style={[styles.farmPlayHeader, styles.gardenHeaderLandscape, { marginTop: 4 }]}>
-        <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
-          <View style={styles.farmCloseButton}>
-            <Ionicons name="close" size={22} color="#FFFFFF" />
-          </View>
-        </AnimatedPressable>
-        <View style={styles.farmLevelBadge}>
-          <Text style={[styles.farmLevelText, { fontFamily: F }]}>🌾 Vườn của bé</Text>
-        </View>
-        <Animated.View
-          ref={basketRef}
-          onLayout={() => {
-            if (basketRef.current) {
-              basketRef.current.measureInWindow((x, y, w, h) => {
-                basketLayoutRef.current = { x, y, width: w, height: h };
-              });
-            }
-          }}
-          style={[styles.gardenBasketBadge, { transform: [{ scale: basketBounce }] }]}
-        >
-          <MaterialCommunityIcons name="basket" size={26} color={FARM.playButtonShadow} />
-          <Text style={[styles.gardenBasketCount, { fontFamily: F8 }]}>{totalHarvested}</Text>
-        </Animated.View>
-      </View>
 
-      <View style={styles.gardenInstructionRowLandscape}>
-        <Text style={[styles.gardenInstructionText, { fontFamily: F8 }]}>
-          Chạm nút vàng để đổi cuốc / tưới / hái — kéo từ nút lên ruộng, hoặc chạm ruộng khi đã chọn
-        </Text>
-      </View>
+      {/* Floating X close button — top-left overlay */}
+      <AnimatedPressable
+        onPress={() => { playSound('tap'); onExit(); }}
+        style={styles.gardenFloatingClose}
+      >
+        <View style={styles.farmCloseButton}>
+          <Ionicons name="close" size={22} color="#FFFFFF" />
+        </View>
+      </AnimatedPressable>
+
+      {/* Floating basket counter — top-right overlay */}
+      <Animated.View
+        ref={basketRef}
+        onLayout={() => {
+          if (basketRef.current) {
+            basketRef.current.measureInWindow((x, y, w, h) => {
+              basketLayoutRef.current = { x, y, width: w, height: h };
+            });
+          }
+        }}
+        style={[styles.gardenFloatingBasket, { transform: [{ scale: basketBounce }] }]}
+      >
+        <MaterialCommunityIcons name="basket" size={26} color={FARM.playButtonShadow} />
+        <Text style={[styles.gardenBasketCount, { fontFamily: F8 }]}>{totalHarvested}</Text>
+      </Animated.View>
 
       <View style={styles.gardenLandscapeRow}>
         {gardenFieldBlock}
@@ -3627,6 +3551,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 999,
+  },
+  gardenFloatingClose: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 10,
+  },
+  gardenFloatingBasket: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: FARM.cardMatched,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: FARM.cardMatchedBorder,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 62,
+    height: 44,
+    justifyContent: 'center',
+    gap: 4,
+    ...SHADOWS.header,
   },
   countQuestionCard: {
     flex: 1,
