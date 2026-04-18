@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as Updates from 'expo-updates';
 import { useFonts, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black } from '@expo-google-fonts/nunito';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 // ============ SHARED DATA ============
 const themes = {
@@ -1389,17 +1389,13 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit, 
 
 // ============================================
 // GAME 3: GARDEN HARVEST (Plant → Grow → Harvest)
-// Pixel art: Kenney "Pixel Platformer: Farm Expansion" (CC0) — see assets/ui/garden/LICENSE-*.txt
+// Ripe crops: CC0 “CC0 Food Icons” (Open Clip Art Library subset) — assets/ui/garden/LICENSE-CC0-Food-OCAL.txt
+// Soil / growth / tools: soft vector icons (MaterialCommunityIcons), not pixel art.
 // ============================================
-const GARDEN_ASSETS = {
-  soil: require('./assets/ui/garden/soil-tilled.png'),
-  planted: require('./assets/ui/garden/crop-seedling.png'),
-  growing: require('./assets/ui/garden/crop-growing.png'),
-  tools: {
-    hoe: require('./assets/ui/garden/tool-hoe.png'),
-    water: require('./assets/ui/garden/tool-water.png'),
-    harvest: require('./assets/ui/garden/tool-basket.png'),
-  },
+const GARDEN_PLOT_ICON = {
+  empty: { name: 'terrain', color: FARM.playButtonShadow },
+  planted: { name: 'sprout', color: FARM.grassDark },
+  growing: { name: 'leaf', color: FARM.grassMid },
 };
 const GARDEN_CROPS = [
   { name: 'Cà rốt',     ripeArt: require('./assets/ui/garden/crop-carrot.png') },
@@ -1421,9 +1417,9 @@ const RIPE_PHASE_DURATION = 1200;
 const GARDEN_PLOT_HIT_PAD = 16;
 
 const GARDEN_TOOLS = [
-  { id: 'hoe',     label: 'Cuốc đất',  validState: 'empty',    image: GARDEN_ASSETS.tools.hoe },
-  { id: 'water',   label: 'Tưới cây',   validState: 'planted', image: GARDEN_ASSETS.tools.water },
-  { id: 'harvest', label: 'Thu hoạch',  validState: 'ripe',    image: GARDEN_ASSETS.tools.harvest },
+  { id: 'hoe',     label: 'Cuốc đất',  validState: 'empty',    icon: 'shovel', color: FARM.subtitleColor },
+  { id: 'water',   label: 'Tưới cây',   validState: 'planted', icon: 'watering-can', color: FARM.headerTitleColor },
+  { id: 'harvest', label: 'Thu hoạch',  validState: 'ripe',    icon: 'basket', color: FARM.playButtonShadow },
 ];
 
 const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
@@ -1732,13 +1728,9 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   }
 
   // ── Helpers ──
-  const getPlotCropImage = (plot) => {
-    if (plot.state === 'planted') return GARDEN_ASSETS.planted;
-    if (plot.state === 'growing') return GARDEN_ASSETS.growing;
-    if (plot.state === 'ripe') return plot.crop?.ripeArt ?? GARDEN_ASSETS.growing;
-    return null;
-  };
-  const cropImageSize = Math.round(Math.min(plotSize - 18, 72));
+  const getRipeCropArt = (plot) => (plot.state === 'ripe' ? plot.crop?.ripeArt : null);
+  const plotVectorIconSize = Math.round(Math.min(plotSize - 16, 68));
+  const cropArtSize = Math.round(Math.min(plotSize - 14, 76));
 
   const getPlotGradient = (plot) => {
     if (plot.state === 'empty') return [FARM.subtitleColor, FARM.playButtonShadow];
@@ -1773,7 +1765,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
           }}
           style={[styles.gardenBasketBadge, { transform: [{ scale: basketBounce }] }]}
         >
-          <Image source={GARDEN_ASSETS.tools.harvest} style={styles.gardenBasketIcon} resizeMode="contain" />
+          <MaterialCommunityIcons name="basket" size={26} color={FARM.playButtonShadow} />
           <Text style={[styles.gardenBasketCount, { fontFamily: F8 }]}>{totalHarvested}</Text>
         </Animated.View>
       </View>
@@ -1793,7 +1785,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
             const scaleTransform = anim
               ? [{ scale: anim.grow }, { scale: anim.toolFlash }]
               : [];
-            const cropImage = getPlotCropImage(plot);
+            const ripeArt = getRipeCropArt(plot);
             const isHovered = hoveredPlotId === plot.id;
             return (
               <Animated.View
@@ -1823,9 +1815,25 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
                     ]}
                   >
                     {plot.state === 'empty' ? (
-                      <Image source={GARDEN_ASSETS.soil} style={[styles.gardenPlotSoilImage, { width: cropImageSize, height: cropImageSize }]} resizeMode="contain" />
-                    ) : cropImage ? (
-                      <Image source={cropImage} style={[styles.gardenPlotCropImage, { width: cropImageSize, height: cropImageSize }]} resizeMode="contain" />
+                      <MaterialCommunityIcons
+                        name={GARDEN_PLOT_ICON.empty.name}
+                        size={plotVectorIconSize}
+                        color={GARDEN_PLOT_ICON.empty.color}
+                      />
+                    ) : plot.state === 'planted' ? (
+                      <MaterialCommunityIcons
+                        name={GARDEN_PLOT_ICON.planted.name}
+                        size={plotVectorIconSize}
+                        color={GARDEN_PLOT_ICON.planted.color}
+                      />
+                    ) : plot.state === 'growing' ? (
+                      <MaterialCommunityIcons
+                        name={GARDEN_PLOT_ICON.growing.name}
+                        size={plotVectorIconSize}
+                        color={GARDEN_PLOT_ICON.growing.color}
+                      />
+                    ) : ripeArt ? (
+                      <Image source={ripeArt} style={[styles.gardenPlotCropImage, { width: cropArtSize, height: cropArtSize }]} resizeMode="contain" />
                     ) : null}
                     {plot.state === 'planted' && (
                       <View style={styles.gardenNeedWaterBadge}>
@@ -1855,7 +1863,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
         {GARDEN_TOOLS.map(tool => (
           <View key={tool.id} style={styles.gardenToolWrap} {...panRespondersRef.current[tool.id].panHandlers}>
             <LinearGradient colors={FARM.playButtonGradient} style={styles.gardenToolButton}>
-              <Image source={tool.image} style={styles.gardenToolIconImage} resizeMode="contain" />
+              <MaterialCommunityIcons name={tool.icon} size={36} color={tool.color} />
             </LinearGradient>
             <Text style={[styles.gardenToolLabel, { fontFamily: F8 }]}>{tool.label}</Text>
           </View>
@@ -1876,7 +1884,11 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
             },
           ]}
         >
-          <Image source={flyOverlay.image} style={styles.gardenFlyImage} resizeMode="contain" />
+          <Image
+            source={flyOverlay.image}
+            style={{ width: cropArtSize + 8, height: cropArtSize + 8 }}
+            resizeMode="contain"
+          />
         </Animated.View>
       )}
 
@@ -1895,11 +1907,9 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
             },
           ]}
         >
-          <Image
-            source={GARDEN_TOOLS.find(t => t.id === dragTool)?.image}
-            style={styles.gardenDragFloatImage}
-            resizeMode="contain"
-          />
+          {GARDEN_TOOLS.filter(t => t.id === dragTool).map(t => (
+            <MaterialCommunityIcons key={t.id} name={t.icon} size={52} color={t.color} />
+          ))}
         </Animated.View>
       )}
 
@@ -3177,10 +3187,6 @@ const styles = StyleSheet.create({
     gap: 4,
     ...SHADOWS.header,
   },
-  gardenBasketIcon: {
-    width: 26,
-    height: 26,
-  },
   gardenBasketCount: {
     color: FARM.subtitleColor,
     fontSize: 18,
@@ -3224,9 +3230,6 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: FARM.grassLight,
     borderWidth: 2,
-  },
-  gardenPlotSoilImage: {
-    opacity: 0.92,
   },
   gardenPlotCropImage: {
     marginTop: 2,
@@ -3276,15 +3279,11 @@ const styles = StyleSheet.create({
   },
   gardenFlyOverlay: {
     position: 'absolute',
-    width: 48,
-    height: 48,
+    minWidth: 56,
+    minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 99,
-  },
-  gardenFlyImage: {
-    width: 44,
-    height: 44,
   },
   gardenToolTray: {
     flexDirection: 'row',
@@ -3306,10 +3305,6 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: FARM.playButtonShadow,
     ...SHADOWS.button,
-  },
-  gardenToolIconImage: {
-    width: 36,
-    height: 36,
   },
   gardenToolLabel: {
     color: FARM.subtitleColor,
@@ -3333,10 +3328,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 999,
-  },
-  gardenDragFloatImage: {
-    width: 52,
-    height: 52,
   },
   countQuestionCard: {
     flex: 1,
