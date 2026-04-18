@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Piper model weights (download from Hugging Face; regenerate audio with tools/generate_letter_audio.py)
+tools/piper-vi/
+
 # Expo
 .expo/
 dist/
