@@ -1764,7 +1764,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     else handlersRef.current.handleHarvest(plot);
   }, []);
 
-  // ── Drag on field: same as applyToolAt but skips already-processed plots ──
+  // ── Drag on field: same tool rules as tap but skips already-processed plots ──
   const applyDragAt = useCallback((pageX, pageY) => {
     const toolId = selectedToolIdRef.current;
     const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
