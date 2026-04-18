@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { FARM, SHADOWS } from './theme';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StatusBar, Animated, Modal, PanResponder, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StatusBar, Animated, Easing, Modal, PanResponder, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -1524,6 +1524,12 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const [hoveredPlotId, setHoveredPlotId] = useState(null);
   const [selectedToolId, setSelectedToolId] = useState('hoe');
 
+  const gardenToolBounceRef = useRef({
+    hoe: new Animated.Value(1),
+    water: new Animated.Value(1),
+    harvest: new Animated.Value(1),
+  });
+
   // ── Anim refs ──
   const plotAnimsRef = useRef({});
   const plotLayoutsRef = useRef({});
@@ -1649,6 +1655,34 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   // ── Keep plotsRef in sync with plots state ──
   useEffect(() => { plotsRef.current = plots; }, [plots]);
   useEffect(() => { selectedToolIdRef.current = selectedToolId; }, [selectedToolId]);
+
+  /** Nhẹ nhàng bounce nút công cụ đang “cần” (ưu tiên: cuốc → tưới → thu hoạch). */
+  useEffect(() => {
+    const unlocked = plots.filter(p => p.unlocked);
+    let hint = null;
+    if (unlocked.some(p => p.state === 'empty')) hint = 'hoe';
+    else if (unlocked.some(p => p.state === 'planted')) hint = 'water';
+    else if (unlocked.some(p => p.state === 'ripe')) hint = 'harvest';
+
+    const refs = gardenToolBounceRef.current;
+    (['hoe', 'water', 'harvest']).forEach((id) => {
+      refs[id].stopAnimation();
+      refs[id].setValue(1);
+    });
+    if (!hint) return undefined;
+    const v = refs[hint];
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1.1, duration: 520, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
+        Animated.timing(v, { toValue: 1, duration: 520, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      v.setValue(1);
+    };
+  }, [plots]);
 
   // ── Portrait board (Farm Saga–style); web keeps responsive layout ──
   useEffect(() => {
@@ -2115,30 +2149,22 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
                 resizeMode="contain"
               />
             ) : null}
-            {!isLocked && plot.state === 'planted' && (
-              <View style={styles.gardenNeedWaterBadge}>
-                <Text style={styles.gardenNeedWaterBadgeText}>💧</Text>
-              </View>
-            )}
-            {!isLocked && plot.state === 'ripe' && (
-              <View style={styles.gardenRipeBadge}>
-                <Text style={styles.gardenRipeBadgeText}>✓</Text>
-              </View>
-            )}
-            {!isLocked && plot.state === 'growing' && (
-              <View style={styles.gardenGrowingBadge}>
-                <Text style={styles.gardenGrowingBadgeText}>✨</Text>
-              </View>
-            )}
             {isLocked && (
               <LinearGradient
-                colors={[FARM.playButtonShadow, FARM.titleColor]}
-                start={{ x: 0.2, y: 0 }}
-                end={{ x: 0.85, y: 1 }}
+                colors={[FARM.gardenStoneLight, FARM.gardenStoneDark]}
+                start={{ x: 0.15, y: 0.1 }}
+                end={{ x: 0.9, y: 0.95 }}
                 style={styles.gardenLockedStone}
                 pointerEvents="none"
               >
                 <View style={styles.gardenLockedStoneHighlight} />
+                <View style={styles.gardenLockedStoneIconWrap} pointerEvents="none">
+                  <MaterialCommunityIcons
+                    name="circle-outline"
+                    size={Math.round(plotSize * 0.42)}
+                    color="rgba(38,40,44,0.88)"
+                  />
+                </View>
               </LinearGradient>
             )}
         </LinearGradient>
@@ -2205,6 +2231,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
       <View style={styles.gardenDockToolsRow}>
         {GARDEN_TOOLS.map(tool => {
           const isSelected = tool.id === selectedToolId;
+          const bounce = gardenToolBounceRef.current[tool.id];
           return (
             <AnimatedPressable
               key={tool.id}
@@ -2214,16 +2241,18 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
                 playSound('tap');
               }}
             >
-              <LinearGradient
-                colors={isSelected ? FARM.playButtonGradient : [FARM.cardFront, FARM.cardFrontBorder]}
-                style={[styles.gardenToolBtn, isSelected && styles.gardenToolBtnSelected]}
-              >
-                <MaterialCommunityIcons
-                  name={tool.icon}
-                  size={34}
-                  color={isSelected ? FARM.playButtonText : FARM.subtitleColor}
-                />
-              </LinearGradient>
+              <Animated.View style={{ transform: [{ scale: bounce }] }}>
+                <LinearGradient
+                  colors={isSelected ? FARM.playButtonGradient : [FARM.cardFront, FARM.cardFrontBorder]}
+                  style={[styles.gardenToolBtn, isSelected && styles.gardenToolBtnSelected]}
+                >
+                  <MaterialCommunityIcons
+                    name={tool.icon}
+                    size={42}
+                    color={isSelected ? FARM.playButtonText : FARM.subtitleColor}
+                  />
+                </LinearGradient>
+              </Animated.View>
               <Text style={[styles.gardenToolBtnLabel, { fontFamily: F8 }]} numberOfLines={1}>
                 {tool.label}
               </Text>
@@ -3665,9 +3694,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   gardenToolBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
+    width: 80,
+    height: 80,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
@@ -3846,7 +3875,7 @@ const styles = StyleSheet.create({
     height: '80%',
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: 'rgba(62,39,35,0.55)',
+    borderColor: 'rgba(55,58,62,0.55)',
     overflow: 'hidden',
     justifyContent: 'flex-start',
   },
@@ -3857,7 +3886,16 @@ const styles = StyleSheet.create({
     width: '42%',
     height: '28%',
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  gardenLockedStoneIconWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   gardenPlotCropImage: {
     marginTop: 2,

@@ -42,6 +42,9 @@ export const FARM = {
   grassMid: '#4ADE80',
   grassDark: '#22C55E',
   hillColor: '#6EE7B7',
+  /** Locked garden tile “stone” overlay (gray pebble). */
+  gardenStoneLight: '#B8B5B2',
+  gardenStoneDark: '#6B6A68',
   /** Space between main content and the grass bar (farm screens). */
   contentGapAboveGrass: 10,
 
