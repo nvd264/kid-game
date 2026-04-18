@@ -1434,6 +1434,60 @@ const gardenFullRowPlotIds = (row) =>
 const gardenFullColPlotIds = (col) =>
   Array.from({ length: GARDEN_GRID_ROWS }, (_, r) => r * GARDEN_GRID_COLS + col);
 
+const gardenPlotNeighbors4 = (plotId) => {
+  const col = plotId % GARDEN_GRID_COLS;
+  const row = Math.floor(plotId / GARDEN_GRID_COLS);
+  const out = [];
+  if (row > 0) out.push((row - 1) * GARDEN_GRID_COLS + col);
+  if (row < GARDEN_GRID_ROWS - 1) out.push((row + 1) * GARDEN_GRID_COLS + col);
+  if (col > 0) out.push(row * GARDEN_GRID_COLS + (col - 1));
+  if (col < GARDEN_GRID_COLS - 1) out.push(row * GARDEN_GRID_COLS + (col + 1));
+  return out;
+};
+
+/** Hai ô chín liền kề cùng loại (ngang hoặc dọc). */
+const gardenFindAdjacentRipePairs = (plots) => {
+  const byId = new Map(plots.map(p => [p.id, p]));
+  const ripePair = (a, b) => {
+    const pa = byId.get(a);
+    const pb = byId.get(b);
+    if (!pa?.unlocked || !pb?.unlocked) return false;
+    if (pa.state !== 'ripe' || pb.state !== 'ripe') return false;
+    const na = pa.crop?.name;
+    const nb = pb.crop?.name;
+    return na && na === nb;
+  };
+  const pairs = [];
+  for (let row = 0; row < GARDEN_GRID_ROWS; row++) {
+    for (let c = 0; c <= GARDEN_GRID_COLS - 2; c++) {
+      const base = row * GARDEN_GRID_COLS + c;
+      const ids = [base, base + 1];
+      if (ripePair(...ids)) pairs.push(ids);
+    }
+  }
+  for (let col = 0; col < GARDEN_GRID_COLS; col++) {
+    for (let r = 0; r <= GARDEN_GRID_ROWS - 2; r++) {
+      const a = r * GARDEN_GRID_COLS + col;
+      const b = (r + 1) * GARDEN_GRID_COLS + col;
+      if (ripePair(a, b)) pairs.push([a, b]);
+    }
+  }
+  return pairs;
+};
+
+const gardenPickLockedNeighborOfPair = (pairIds, plots) => {
+  const [a, b] = pairIds;
+  const cand = new Set();
+  gardenPlotNeighbors4(a).forEach((id) => cand.add(id));
+  gardenPlotNeighbors4(b).forEach((id) => cand.add(id));
+  const locked = [...cand].filter((id) => {
+    const p = plots.find((x) => x.id === id);
+    return p && !p.unlocked;
+  });
+  if (locked.length === 0) return null;
+  return locked[Math.floor(Math.random() * locked.length)];
+};
+
 /** Ba ô chín liền nhau cùng loại (ngang hoặc dọc), cả ba đều unlocked → mở cả hàng hoặc cả cột. */
 const gardenFindTripleRipeLineEvents = (plots) => {
   const byId = new Map(plots.map(p => [p.id, p]));
@@ -1455,7 +1509,7 @@ const gardenFindTripleRipeLineEvents = (plots) => {
       const triple = [base, base + 1, base + 2];
       if (ripeTriple(...triple)) {
         events.push({
-          sig: `r${row}-${triple.join(',')}`,
+          sig: `triple:${[...triple].sort((x, y) => x - y).join(',')}`,
           burstIds: triple,
           unlockIds: gardenFullRowPlotIds(row),
         });
@@ -1471,7 +1525,7 @@ const gardenFindTripleRipeLineEvents = (plots) => {
       ];
       if (ripeTriple(...triple)) {
         events.push({
-          sig: `c${col}-${triple.join(',')}`,
+          sig: `triple:${[...triple].sort((x, y) => x - y).join(',')}`,
           burstIds: triple,
           unlockIds: gardenFullColPlotIds(col),
         });
@@ -1523,13 +1577,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const [selectedToolId, setSelectedToolId] = useState('hoe');
   const [gardenWinVisible, setGardenWinVisible] = useState(false);
 
-  const gardenToolBounceRef = useRef({
-    hoe: new Animated.Value(1),
-    water: new Animated.Value(1),
-    harvest: new Animated.Value(1),
-  });
-  const gardenToolBounceLoopRef = useRef(null);
-
   // ── Anim refs ──
   const plotAnimsRef = useRef({});
   const plotLayoutsRef = useRef({});
@@ -1553,7 +1600,9 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   // ── Stable refs for PanResponder closures ──
   const plotsRef = useRef([]);
   const hoveredPlotIdRef = useRef(null);
-  const lastToolPlotRef = useRef({ hoe: null, water: null, harvest: null });
+  /** Last plot id while drag-painting on field (any tool inferred from cell state). */
+  const lastFieldPlotDragRef = useRef(null);
+  const lastDockPlotRef = useRef({ hoe: null, water: null, harvest: null });
   const selectedToolIdRef = useRef('hoe');
   const handlersRef = useRef({});
   const dragFromFabRef = useRef(false);
@@ -1565,7 +1614,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const gardenForgetComboSignaturesTouchingPlot = useCallback((plotId) => {
     const s = gardenComboRewardedRef.current;
     [...s].forEach((key) => {
-      const tail = key.split(':').pop();
+      const tail = key.includes(':') ? key.split(':').slice(1).join(':') : key;
       if (!tail) return;
       if (tail.split(',').map(Number).includes(plotId)) s.delete(key);
     });
@@ -1576,13 +1625,41 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     return !!p?.unlocked;
   }, []);
 
-  /** Ba quả chín liền nhau cùng loại → nổ + mở cả hàng hoặc cả cột (chưa thưởng). */
+  const runComboBurst = useCallback((burstIds) => {
+    burstIds.forEach((pid) => {
+      const anim = plotAnimsRef.current[pid];
+      if (!anim?.toolFlash) return;
+      anim.toolFlash.stopAnimation();
+      anim.toolFlash.setValue(1);
+      Animated.sequence([
+        Animated.timing(anim.toolFlash, { toValue: 1.38, duration: 100, useNativeDriver: true }),
+        Animated.timing(anim.toolFlash, { toValue: 1, duration: 180, useNativeDriver: true }),
+      ]).start();
+    });
+  }, []);
+
+  const runUnlockGlow = useCallback((toOpen) => {
+    toOpen.forEach((pid, idx) => {
+      const anim = plotAnimsRef.current[pid];
+      if (anim?.unlockPulse) {
+        anim.unlockPulse.setValue(0);
+        Animated.sequence([
+          Animated.delay(idx * 45),
+          Animated.timing(anim.unlockPulse, { toValue: 1, duration: 420, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
+        ]).start(() => {
+          anim.unlockPulse.setValue(0);
+        });
+      }
+    });
+  }, []);
+
+  /** 3 quả chín liền nhau → mở cả hàng/cột; 2 quả chín liền nhau → nổ + mở 1 ô kề (chưa thưởng). */
   const applyAllComboUnlocks = useCallback((plotsIn) => {
     let out = plotsIn;
     let changed = false;
-    const events = gardenFindTripleRipeLineEvents(out);
-    for (let i = 0; i < events.length; i++) {
-      const { sig, burstIds, unlockIds } = events[i];
+    const tripleEvents = gardenFindTripleRipeLineEvents(out);
+    for (let i = 0; i < tripleEvents.length; i++) {
+      const { sig, burstIds, unlockIds } = tripleEvents[i];
       if (gardenComboRewardedRef.current.has(sig)) continue;
       const toOpen = unlockIds.filter((id) => !out.find((p) => p.id === id)?.unlocked);
       if (toOpen.length === 0) {
@@ -1590,28 +1667,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         continue;
       }
       gardenComboRewardedRef.current.add(sig);
-      burstIds.forEach((pid) => {
-        const anim = plotAnimsRef.current[pid];
-        if (!anim?.toolFlash) return;
-        anim.toolFlash.stopAnimation();
-        anim.toolFlash.setValue(1);
-        Animated.sequence([
-          Animated.timing(anim.toolFlash, { toValue: 1.38, duration: 100, useNativeDriver: true }),
-          Animated.timing(anim.toolFlash, { toValue: 1, duration: 180, useNativeDriver: true }),
-        ]).start();
-      });
-      toOpen.forEach((pid, idx) => {
-        const anim = plotAnimsRef.current[pid];
-        if (anim?.unlockPulse) {
-          anim.unlockPulse.setValue(0);
-          Animated.sequence([
-            Animated.delay(idx * 45),
-            Animated.timing(anim.unlockPulse, { toValue: 1, duration: 420, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
-          ]).start(() => {
-            anim.unlockPulse.setValue(0);
-          });
-        }
-      });
+      runComboBurst(burstIds);
+      runUnlockGlow(toOpen);
       if (!gardenFieldDragActiveRef.current) playSound('match');
       out = out.map((p) => {
         if (!toOpen.includes(p.id)) return p;
@@ -1619,8 +1676,30 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
       });
       changed = true;
     }
+
+    const pairs = gardenFindAdjacentRipePairs(out);
+    for (let i = 0; i < pairs.length; i++) {
+      const ids = pairs[i];
+      const sig = `p:${ids[0]},${ids[1]}`;
+      if (gardenComboRewardedRef.current.has(sig)) continue;
+      const pick = gardenPickLockedNeighborOfPair(ids, out);
+      if (pick == null) {
+        gardenComboRewardedRef.current.add(sig);
+        continue;
+      }
+      gardenComboRewardedRef.current.add(sig);
+      runComboBurst(ids);
+      runUnlockGlow([pick]);
+      if (!gardenFieldDragActiveRef.current) playSound('match');
+      out = out.map((p) =>
+        p.id === pick
+          ? { ...p, unlocked: true, previewCrop: p.previewCrop ?? randomGardenCrop() }
+          : p,
+      );
+      changed = true;
+    }
     return changed ? out : null;
-  }, [playSound]);
+  }, [playSound, runComboBurst, runUnlockGlow]);
 
   const initPlotAnim = useCallback((id) => {
     if (plotAnimsRef.current[id]) {
@@ -1670,49 +1749,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   // ── Keep plotsRef in sync with plots state ──
   useEffect(() => { plotsRef.current = plots; }, [plots]);
   useEffect(() => { selectedToolIdRef.current = selectedToolId; }, [selectedToolId]);
-
-  /** Bounce nút công cụ đúng với bước tiếp theo (theo tool đang chọn nếu còn việc; không ưu tiên sai khi đã chọn thu hoạch). */
-  useEffect(() => {
-    if (gardenWinVisible) return undefined;
-    const unlocked = plots.filter(p => p.unlocked);
-    const sel = selectedToolIdRef.current;
-    const canHoe = unlocked.some(p => p.state === 'empty');
-    const canWater = unlocked.some(p => p.state === 'planted');
-    const canHarvest = unlocked.some(p => p.state === 'ripe');
-
-    let hint = null;
-    if (sel === 'hoe' && canHoe) hint = 'hoe';
-    else if (sel === 'water' && canWater) hint = 'water';
-    else if (sel === 'harvest' && canHarvest) hint = 'harvest';
-    else if (canHarvest) hint = 'harvest';
-    else if (canWater) hint = 'water';
-    else if (canHoe) hint = 'hoe';
-
-    const refs = gardenToolBounceRef.current;
-    if (gardenToolBounceLoopRef.current) {
-      gardenToolBounceLoopRef.current.stop();
-      gardenToolBounceLoopRef.current = null;
-    }
-    (['hoe', 'water', 'harvest']).forEach((id) => {
-      refs[id].stopAnimation();
-      refs[id].setValue(1);
-    });
-    if (!hint) return undefined;
-    const v = refs[hint];
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(v, { toValue: 1.12, duration: 480, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
-        Animated.timing(v, { toValue: 1, duration: 480, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
-      ]),
-    );
-    gardenToolBounceLoopRef.current = loop;
-    loop.start();
-    return () => {
-      loop.stop();
-      gardenToolBounceLoopRef.current = null;
-      v.setValue(1);
-    };
-  }, [plots, selectedToolId, gardenWinVisible]);
 
   /** Thắng: mọi ô đã mở và mọi ô chơi được đều trống (đã thu hoạch hết). */
   useEffect(() => {
@@ -1773,6 +1809,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   }, [playSound]);
 
   /** Coordinates relative to the grid hit-area view (same box as row layout). */
+  /** `validState` optional — omit to hit any unlocked cell (smart field drag). */
   const pickPlotFromLocalXY = useCallback((localX, localY, validState) => {
     const stride = plotSize + plotGap;
     if (stride <= 0) return null;
@@ -1786,7 +1823,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const plotId = row * GARDEN_GRID_COLS + col;
     if (!gardenPlotIsPlayable(plotId)) return null;
     const plot = plotsRef.current.find(p => p.id === plotId);
-    if (!plot || plot.state !== validState) return null;
+    if (!plot) return null;
+    if (validState != null && plot.state !== validState) return null;
     return plotId;
   }, [plotSize, plotGap, gardenPlotIsPlayable]);
 
@@ -1909,18 +1947,38 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     }
   }, [basketBounce, flyAnimOp, flyAnimX, flyAnimY, playSound, gardenForgetComboSignaturesTouchingPlot]);
 
-  // ── Drag from dock onto field: floating tool + apply (tool chosen via 3 buttons) ──
-  const gardenDockDragPanRef = useRef(null);
-  if (!gardenDockDragPanRef.current) {
+  /** Ruộng: áp dụng đúng công cụ theo trạng thái ô (không cần chọn trước). */
+  const applyToolForPlayablePlot = useCallback((plotId) => {
+    if (!gardenPlotIsPlayable(plotId)) return;
+    const plot = plotsRef.current.find(p => p.id === plotId);
+    if (!plot) return;
+    handlersRef.current.triggerPlotToolFeedback(plotId);
+    if (plot.state === 'empty') handlersRef.current.handlePlant(plotId);
+    else if (plot.state === 'planted') handlersRef.current.handleWater(plotId);
+    else if (plot.state === 'ripe') handlersRef.current.handleHarvest(plot);
+  }, []);
+
+  /** Kéo từ dock: chỉ công cụ đang kéo (toolId), không đổi selected. */
+  const applyDockToolToPlot = useCallback((plotId, toolId) => {
+    if (!gardenPlotIsPlayable(plotId)) return;
+    const plot = plotsRef.current.find(p => p.id === plotId);
+    if (!plot) return;
+    const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
+    if (plot.state !== validState) return;
+    handlersRef.current.triggerPlotToolFeedback(plotId);
+    if (toolId === 'hoe') handlersRef.current.handlePlant(plotId);
+    else if (toolId === 'water') handlersRef.current.handleWater(plotId);
+    else handlersRef.current.handleHarvest(plot);
+  }, []);
+
+  const gardenDockToolPanRefs = useRef({});
+  if (!gardenDockToolPanRefs.current.hoe) {
     const dragStartSlop = 10;
     const moveSlopDock = (_, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6;
-    gardenDockDragPanRef.current = PanResponder.create({
+    const makeDockPan = (toolId) => PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: (_, g) => {
-        const d = Math.sqrt(g.dx * g.dx + g.dy * g.dy);
-        return d > dragStartSlop;
-      },
+      onMoveShouldSetPanResponder: (_, g) => Math.sqrt(g.dx * g.dx + g.dy * g.dy) > dragStartSlop,
       onMoveShouldSetPanResponderCapture: moveSlopDock,
       onPanResponderGrant: (evt) => {
         dragFromFabRef.current = false;
@@ -1932,11 +1990,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
       },
       onPanResponderMove: (evt, g) => {
         const dist = Math.sqrt(g.dx * g.dx + g.dy * g.dy);
-        const toolId = selectedToolIdRef.current;
         const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
         if (dist > dragStartSlop && !dragFromFabRef.current) {
           dragFromFabRef.current = true;
-          lastToolPlotRef.current[toolId] = null;
+          lastDockPlotRef.current[toolId] = null;
           handlersRef.current.syncGardenPlotLayoutsFromGrid?.();
           setDragTool(toolId);
           Animated.spring(dragFloatScale, {
@@ -1954,18 +2011,12 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           setHoveredPlotId(newHovered);
         }
         if (newHovered == null) {
-          lastToolPlotRef.current[toolId] = null;
+          lastDockPlotRef.current[toolId] = null;
           return;
         }
-        if (lastToolPlotRef.current[toolId] === newHovered) return;
-        lastToolPlotRef.current[toolId] = newHovered;
-        handlersRef.current.triggerPlotToolFeedback(newHovered);
-        if (toolId === 'hoe') handlersRef.current.handlePlant(newHovered);
-        else if (toolId === 'water') handlersRef.current.handleWater(newHovered);
-        else {
-          const plot = plotsRef.current.find(p => p.id === newHovered);
-          if (plot) handlersRef.current.handleHarvest(plot);
-        }
+        if (lastDockPlotRef.current[toolId] === newHovered) return;
+        lastDockPlotRef.current[toolId] = newHovered;
+        handlersRef.current.applyDockToolToPlot?.(newHovered, toolId);
       },
       onPanResponderRelease: () => {
         if (dragFromFabRef.current) {
@@ -1974,8 +2025,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           });
           hoveredPlotIdRef.current = null;
           setHoveredPlotId(null);
-          const toolId = selectedToolIdRef.current;
-          lastToolPlotRef.current[toolId] = null;
+          lastDockPlotRef.current[toolId] = null;
         }
         dragFromFabRef.current = false;
         gardenDragFromDockRef.current = false;
@@ -1987,45 +2037,29 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         setHoveredPlotId(null);
         dragFromFabRef.current = false;
         gardenDragFromDockRef.current = false;
+        lastDockPlotRef.current[toolId] = null;
       },
+    });
+    GARDEN_TOOLS.forEach((t) => {
+      gardenDockToolPanRefs.current[t.id] = makeDockPan(t.id);
     });
   }
 
-  const applyToolToPlotId = useCallback((plotId) => {
-    if (!gardenPlotIsPlayable(plotId)) return;
-    const toolId = selectedToolIdRef.current;
-    const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
-    const plot = plotsRef.current.find(p => p.id === plotId);
-    if (!plot || plot.state !== validState) return;
-    handlersRef.current.triggerPlotToolFeedback(plotId);
-    if (toolId === 'hoe') handlersRef.current.handlePlant(plotId);
-    else if (toolId === 'water') handlersRef.current.handleWater(plotId);
-    else handlersRef.current.handleHarvest(plot);
-  }, []);
-
   const applyToolAtLocal = useCallback((localX, localY) => {
-    const toolId = selectedToolIdRef.current;
-    const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
-    const plotId = handlersRef.current.pickPlotFromLocalXY(localX, localY, validState);
+    const plotId = handlersRef.current.pickPlotFromLocalXY(localX, localY);
     if (plotId == null) return;
-    handlersRef.current.applyToolToPlotId(plotId);
+    handlersRef.current.applyToolForPlayablePlot?.(plotId);
   }, []);
 
-  // ── Drag on field: same tool rules as tap but skips already-processed plots ──
   const applyDragAtLocal = useCallback((localX, localY) => {
-    const toolId = selectedToolIdRef.current;
-    const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
-    const plotId = handlersRef.current.pickPlotFromLocalXY(localX, localY, validState);
-    if (plotId == null) { lastToolPlotRef.current[toolId] = null; return; }
-    if (lastToolPlotRef.current[toolId] === plotId) return;
-    lastToolPlotRef.current[toolId] = plotId;
-    handlersRef.current.triggerPlotToolFeedback(plotId);
-    if (toolId === 'hoe') handlersRef.current.handlePlant(plotId);
-    else if (toolId === 'water') handlersRef.current.handleWater(plotId);
-    else {
-      const plot = plotsRef.current.find(p => p.id === plotId);
-      if (plot) handlersRef.current.handleHarvest(plot);
+    const plotId = handlersRef.current.pickPlotFromLocalXY(localX, localY);
+    if (plotId == null) {
+      lastFieldPlotDragRef.current = null;
+      return;
     }
+    if (lastFieldPlotDragRef.current === plotId) return;
+    lastFieldPlotDragRef.current = plotId;
+    handlersRef.current.applyToolForPlayablePlot?.(plotId);
   }, []);
 
   const flushFieldDragPendingMove = useCallback(() => {
@@ -2046,7 +2080,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   }, [flushFieldDragPendingMove]);
 
   const resetFieldDrag = useCallback(() => {
-    lastToolPlotRef.current[selectedToolIdRef.current] = null;
+    lastFieldPlotDragRef.current = null;
   }, []);
 
   handlersRef.current = {
@@ -2057,7 +2091,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     pickPlotUnderFinger,
     pickPlotFromLocalXY,
     triggerPlotToolFeedback,
-    applyToolToPlotId,
+    applyToolForPlayablePlot,
+    applyDockToolToPlot,
     applyToolAtLocal,
     applyDragAtLocal,
     scheduleFieldDragMove,
@@ -2099,11 +2134,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         const { locationX, locationY } = evt.nativeEvent;
         const dx = locationX - fieldDragStartRef.x;
         const dy = locationY - fieldDragStartRef.y;
-        const toolId = selectedToolIdRef.current;
-        if (
-          dx * dx + dy * dy < slop * slop &&
-          lastToolPlotRef.current[toolId] == null
-        ) {
+        if (dx * dx + dy * dy < slop * slop && lastFieldPlotDragRef.current == null) {
           handlersRef.current.applyToolAtLocal?.(locationX, locationY);
         }
         handlersRef.current.resetFieldDrag?.();
@@ -2261,8 +2292,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
 
   const gardenFieldBlock = (
     <View style={[styles.gardenFieldPatch, styles.gardenFieldPressablePortrait]}>
-      <Text style={[styles.gardenInstructionText, { fontFamily: F8, marginBottom: 8, paddingHorizontal: 4 }]} numberOfLines={4}>
-        Ruộng giữa 3×3: cuốc, tưới, thu hoạch. Ba quả chín giống nhau liền nhau trên một hàng hoặc một cột sẽ mở cả hàng hoặc cả cột đó.
+      <Text style={[styles.gardenInstructionText, { fontFamily: F8, marginBottom: 8, paddingHorizontal: 4 }]} numberOfLines={5}>
+        Ruộng giữa 3×3. Chạm hoặc kéo trên ruộng: tự cuốc / tưới / thu hoạch theo từng ô (không cần chọn công cụ). Hai quả chín giống nhau cạnh nhau mở thêm một ô kề; ba quả chín giống nhau liền nhau trên một hàng hoặc cột mở cả hàng hoặc cả cột.
       </Text>
       <View style={styles.gardenPlotGridColumn}>
         <View
@@ -2291,20 +2322,19 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         </AnimatedPressable>
       </View>
 
-      <View style={styles.gardenDockToolsOneRow} {...gardenDockDragPanRef.current.panHandlers}>
+      <View style={styles.gardenDockToolsOneRow}>
         {GARDEN_TOOLS.map(tool => {
           const isSelected = tool.id === selectedToolId;
-          const bounce = gardenToolBounceRef.current[tool.id];
+          const pan = gardenDockToolPanRefs.current[tool.id]?.panHandlers;
           return (
-            <AnimatedPressable
-              key={tool.id}
-              onPress={() => {
-                setSelectedToolId(tool.id);
-                selectedToolIdRef.current = tool.id;
-                playSound('tap');
-              }}
-            >
-              <Animated.View style={{ transform: [{ scale: bounce }] }}>
+            <View key={tool.id} {...(pan || {})}>
+              <AnimatedPressable
+                onPress={() => {
+                  setSelectedToolId(tool.id);
+                  selectedToolIdRef.current = tool.id;
+                  playSound('tap');
+                }}
+              >
                 <LinearGradient
                   colors={isSelected ? FARM.playButtonGradient : [FARM.cardFront, FARM.cardFrontBorder]}
                   style={[styles.gardenToolBtn, isSelected && styles.gardenToolBtnSelected]}
@@ -2315,11 +2345,11 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
                     color={isSelected ? FARM.playButtonText : FARM.subtitleColor}
                   />
                 </LinearGradient>
-              </Animated.View>
-              <Text style={[styles.gardenToolBtnLabel, { fontFamily: F8 }]} numberOfLines={1}>
-                {tool.label}
-              </Text>
-            </AnimatedPressable>
+                <Text style={[styles.gardenToolBtnLabel, { fontFamily: F8 }]} numberOfLines={1}>
+                  {tool.label}
+                </Text>
+              </AnimatedPressable>
+            </View>
           );
         })}
       </View>
