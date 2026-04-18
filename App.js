@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffe
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StatusBar, Animated, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as Updates from 'expo-updates';
 import { useFonts, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black } from '@expo-google-fonts/nunito';
 import { Ionicons } from '@expo/vector-icons';
@@ -157,6 +157,39 @@ const Icon = ({ value, size }) => {
   return <Text style={{ fontSize: size * 0.85 }}>{value}</Text>;
 };
 
+// Letter pronunciation clips (paths; data list is below with LetterGame)
+const LETTER_SOUND_ASSETS = {
+  u0041: require('./assets/sounds/letters/u0041.mp3'),
+  u0102: require('./assets/sounds/letters/u0102.mp3'),
+  u00c2: require('./assets/sounds/letters/u00c2.mp3'),
+  u0042: require('./assets/sounds/letters/u0042.mp3'),
+  u0043: require('./assets/sounds/letters/u0043.mp3'),
+  u0044: require('./assets/sounds/letters/u0044.mp3'),
+  u0110: require('./assets/sounds/letters/u0110.mp3'),
+  u0045: require('./assets/sounds/letters/u0045.mp3'),
+  u00ca: require('./assets/sounds/letters/u00ca.mp3'),
+  u0047: require('./assets/sounds/letters/u0047.mp3'),
+  u0048: require('./assets/sounds/letters/u0048.mp3'),
+  u0049: require('./assets/sounds/letters/u0049.mp3'),
+  u004b: require('./assets/sounds/letters/u004b.mp3'),
+  u004c: require('./assets/sounds/letters/u004c.mp3'),
+  u004d: require('./assets/sounds/letters/u004d.mp3'),
+  u004e: require('./assets/sounds/letters/u004e.mp3'),
+  u004f: require('./assets/sounds/letters/u004f.mp3'),
+  u00d4: require('./assets/sounds/letters/u00d4.mp3'),
+  u01a0: require('./assets/sounds/letters/u01a0.mp3'),
+  u0050: require('./assets/sounds/letters/u0050.mp3'),
+  u0051: require('./assets/sounds/letters/u0051.mp3'),
+  u0052: require('./assets/sounds/letters/u0052.mp3'),
+  u0053: require('./assets/sounds/letters/u0053.mp3'),
+  u0054: require('./assets/sounds/letters/u0054.mp3'),
+  u0055: require('./assets/sounds/letters/u0055.mp3'),
+  u01af: require('./assets/sounds/letters/u01af.mp3'),
+  u0056: require('./assets/sounds/letters/u0056.mp3'),
+  u0058: require('./assets/sounds/letters/u0058.mp3'),
+  u0059: require('./assets/sounds/letters/u0059.mp3'),
+};
+
 // ============ AUDIO MANAGER ============
 class SoundManager {
   constructor() {
@@ -164,6 +197,9 @@ class SoundManager {
     this.loaded = false;
     this.backgroundEnabled = false;
     this.externalSound = null;
+    this.letterSounds = {};
+    this.letterSoundsLoaded = false;
+    this.letterSoundActive = null;
   }
 
   async loadSounds() {
@@ -172,6 +208,9 @@ class SoundManager {
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
+        interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+        shouldDuckAndroid: false,
       });
       for (const [type, source] of Object.entries(soundAssets)) {
         const { sound } = await Audio.Sound.createAsync(source, {
@@ -284,11 +323,63 @@ class SoundManager {
     this.externalSound = null;
   }
 
+  async loadLetterSounds() {
+    if (this.letterSoundsLoaded) return;
+    try {
+      const entries = Object.entries(LETTER_SOUND_ASSETS);
+      for (const [key, source] of entries) {
+        const { sound } = await Audio.Sound.createAsync(source, {
+          shouldPlay: false,
+          isLooping: false,
+          volume: 0.88,
+        });
+        this.letterSounds[key] = sound;
+      }
+      this.letterSoundsLoaded = true;
+    } catch (error) {
+      console.log('Error loading letter sounds:', error);
+    }
+  }
+
+  async unloadLetterSounds() {
+    await this.stopLetterSound();
+    for (const sound of Object.values(this.letterSounds)) {
+      try { await sound.unloadAsync(); } catch {}
+    }
+    this.letterSounds = {};
+    this.letterSoundsLoaded = false;
+  }
+
+  async stopLetterSound() {
+    if (!this.letterSoundActive) return;
+    try {
+      await this.letterSoundActive.stopAsync();
+    } catch {}
+    this.letterSoundActive = null;
+  }
+
+  async playLetterSound(letter) {
+    const cp = letter.codePointAt(0);
+    const key = `u${cp.toString(16).padStart(4, '0')}`;
+    const sound = this.letterSounds[key];
+    if (!sound) return;
+    try {
+      if (this.letterSoundActive && this.letterSoundActive !== sound) {
+        try { await this.letterSoundActive.stopAsync(); } catch {}
+      }
+      this.letterSoundActive = sound;
+      await sound.replayAsync();
+    } catch (error) {
+      console.log('Error playing letter sound:', error);
+    }
+  }
+
   async unloadSounds() {
     if (this.externalSound) {
       try { await this.externalSound.unloadAsync(); } catch {}
       this.externalSound = null;
     }
+    await this.unloadLetterSounds();
     for (const sound of Object.values(this.sounds)) {
       try { await sound.unloadAsync(); } catch {}
     }
@@ -520,7 +611,7 @@ const getTierIcon = (tier) => {
 };
 
 // ============ LETTER GAME DATA (29 chữ cái tiếng Việt, không gồm F J W Z) ============
-// Minh hoạ: emoji → ảnh Twemoji. Phát âm: file MP3 sinh bằng Piper (vi_VN vais1000), có nghỉ giữa "Chữ …" và từ ví dụ.
+// Minh hoạ: emoji → ảnh Twemoji. Phát âm: MP3 Piper (một lần tổng hợp "Chữ X." + nghỉ + từ ví dụ).
 const VIETNAMESE_ALPHABET = [
   { letter: 'A',  emoji: '👕', word: 'Áo' },
   { letter: 'Ă',  emoji: '🍚', word: 'Ăn cơm' },
@@ -552,44 +643,6 @@ const VIETNAMESE_ALPHABET = [
   { letter: 'X',  emoji: '🥭', word: 'Xoài' },
   { letter: 'Y',  emoji: '❤️', word: 'Yêu thương' },
 ];
-
-const LETTER_SOUND_ASSETS = {
-  u0041: require('./assets/sounds/letters/u0041.mp3'),
-  u0102: require('./assets/sounds/letters/u0102.mp3'),
-  u00c2: require('./assets/sounds/letters/u00c2.mp3'),
-  u0042: require('./assets/sounds/letters/u0042.mp3'),
-  u0043: require('./assets/sounds/letters/u0043.mp3'),
-  u0044: require('./assets/sounds/letters/u0044.mp3'),
-  u0110: require('./assets/sounds/letters/u0110.mp3'),
-  u0045: require('./assets/sounds/letters/u0045.mp3'),
-  u00ca: require('./assets/sounds/letters/u00ca.mp3'),
-  u0047: require('./assets/sounds/letters/u0047.mp3'),
-  u0048: require('./assets/sounds/letters/u0048.mp3'),
-  u0049: require('./assets/sounds/letters/u0049.mp3'),
-  u004b: require('./assets/sounds/letters/u004b.mp3'),
-  u004c: require('./assets/sounds/letters/u004c.mp3'),
-  u004d: require('./assets/sounds/letters/u004d.mp3'),
-  u004e: require('./assets/sounds/letters/u004e.mp3'),
-  u004f: require('./assets/sounds/letters/u004f.mp3'),
-  u00d4: require('./assets/sounds/letters/u00d4.mp3'),
-  u01a0: require('./assets/sounds/letters/u01a0.mp3'),
-  u0050: require('./assets/sounds/letters/u0050.mp3'),
-  u0051: require('./assets/sounds/letters/u0051.mp3'),
-  u0052: require('./assets/sounds/letters/u0052.mp3'),
-  u0053: require('./assets/sounds/letters/u0053.mp3'),
-  u0054: require('./assets/sounds/letters/u0054.mp3'),
-  u0055: require('./assets/sounds/letters/u0055.mp3'),
-  u01af: require('./assets/sounds/letters/u01af.mp3'),
-  u0056: require('./assets/sounds/letters/u0056.mp3'),
-  u0058: require('./assets/sounds/letters/u0058.mp3'),
-  u0059: require('./assets/sounds/letters/u0059.mp3'),
-};
-
-const getLetterSoundSource = (letter) => {
-  const cp = letter.codePointAt(0);
-  const key = `u${cp.toString(16).padStart(4, '0')}`;
-  return LETTER_SOUND_ASSETS[key];
-};
 
 const ConfettiParticle = ({ anim, x, emoji, size }) => {
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -340] });
@@ -2196,13 +2249,6 @@ const LETTER_ACTION_GRADIENTS = [
   ['#6366F1', '#818CF8'],
 ];
 
-const playLetterPronunciation = async (entry) => {
-  if (!entry) return;
-  const src = getLetterSoundSource(entry.letter);
-  if (!src) return;
-  await soundManager.playClip(src, 0.52, { waitForFinish: false });
-};
-
 const LetterGame = ({ playSound, onExit }) => {
   const [index, setIndex] = useState(0);
   const total = VIETNAMESE_ALPHABET.length;
@@ -2211,37 +2257,45 @@ const LetterGame = ({ playSound, onExit }) => {
   const prevGradient = LETTER_ACTION_GRADIENTS[(index + 3) % LETTER_ACTION_GRADIENTS.length];
   const nextGradient = LETTER_ACTION_GRADIENTS[(index + 1) % LETTER_ACTION_GRADIENTS.length];
 
+  useEffect(() => () => { soundManager.unloadLetterSounds(); }, []);
+
   useEffect(() => {
-    const t = setTimeout(() => { playLetterPronunciation(entry); }, 280);
+    let cancelled = false;
+    let timeoutId = null;
+    (async () => {
+      await soundManager.loadLetterSounds();
+      if (cancelled) return;
+      timeoutId = setTimeout(() => { soundManager.playLetterSound(entry.letter); }, 320);
+    })();
     return () => {
-      clearTimeout(t);
-      soundManager.stopClip();
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [entry]);
 
   const goPrev = () => {
-    soundManager.stopClip();
+    soundManager.stopLetterSound();
     playSound('tap');
     setIndex((i) => (i <= 0 ? total - 1 : i - 1));
   };
 
   const goNext = () => {
-    soundManager.stopClip();
+    soundManager.stopLetterSound();
     playSound('tap');
     setIndex((i) => (i >= total - 1 ? 0 : i + 1));
   };
 
   const replay = () => {
-    soundManager.stopClip();
+    soundManager.stopLetterSound();
     playSound('levelSelect');
-    playLetterPronunciation(entry);
+    soundManager.playLetterSound(entry.letter);
   };
 
   return (
     <LinearGradient colors={['#7C3AED', '#EC4899']} style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" />
       <View style={[styles.header, { marginTop: 44 }]}>
-        <AnimatedPressable style={styles.backButton} onPress={() => { soundManager.stopClip(); playSound('tap'); onExit(); }}>
+        <AnimatedPressable style={styles.backButton} onPress={() => { soundManager.stopLetterSound(); playSound('tap'); onExit(); }}>
           <Ionicons name="chevron-back" size={24} color="#6A66A8" />
         </AnimatedPressable>
         <Text style={[styles.headerTitle, { color: '#FFF9F0', textShadowColor: 'rgba(57,8,89,0.35)', textShadowRadius: 3 }]}>🔤 Học chữ</Text>
