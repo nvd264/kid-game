@@ -518,6 +518,42 @@ const getTierIcon = (tier) => {
     default: return '🎯';
   }
 };
+
+// ============ LETTER GAME DATA ============
+const LETTER_LEVEL_ORDER = ['easy', 'medium', 'hard'];
+
+const VIET_ALPHABET = [
+  // Nhóm easy — chữ đơn phổ biến (10)
+  { letter: 'A', emoji: '👕', word: 'Áo',      group: 'easy' },
+  { letter: 'B', emoji: '🦋', word: 'Bướm',    group: 'easy' },
+  { letter: 'C', emoji: '🐟', word: 'Cá',      group: 'easy' },
+  { letter: 'D', emoji: '🍉', word: 'Dưa hấu', group: 'easy' },
+  { letter: 'E', emoji: '👶', word: 'Em bé',   group: 'easy' },
+  { letter: 'G', emoji: '🐔', word: 'Gà',      group: 'easy' },
+  { letter: 'H', emoji: '🌸', word: 'Hoa',     group: 'easy' },
+  { letter: 'K', emoji: '🍬', word: 'Kẹo',     group: 'easy' },
+  { letter: 'L', emoji: '🍃', word: 'Lá',      group: 'easy' },
+  { letter: 'M', emoji: '🐱', word: 'Mèo',     group: 'easy' },
+  // Nhóm medium (10, pool = easy + medium = 20)
+  { letter: 'N', emoji: '🦌', word: 'Nai',     group: 'medium' },
+  { letter: 'O', emoji: '🐝', word: 'Ong',     group: 'medium' },
+  { letter: 'Q', emoji: '🍊', word: 'Quả cam', group: 'medium' },
+  { letter: 'R', emoji: '🐍', word: 'Rắn',     group: 'medium' },
+  { letter: 'S', emoji: '⭐', word: 'Sao',     group: 'medium' },
+  { letter: 'T', emoji: '🍎', word: 'Táo',     group: 'medium' },
+  { letter: 'U', emoji: '🥤', word: 'Uống',    group: 'medium' },
+  { letter: 'V', emoji: '🦆', word: 'Vịt',     group: 'medium' },
+  { letter: 'X', emoji: '🥭', word: 'Xoài',    group: 'medium' },
+  { letter: 'Y', emoji: '❤️', word: 'Yêu',     group: 'medium' },
+  // Nhóm hard — chữ có dấu phụ (7, pool = tất cả 27)
+  { letter: 'Ă', emoji: '🍽️', word: 'Ăn cơm', group: 'hard' },
+  { letter: 'Â', emoji: '🎵', word: 'Âm nhạc', group: 'hard' },
+  { letter: 'Đ', emoji: '💡', word: 'Đèn',     group: 'hard' },
+  { letter: 'Ê', emoji: '🐸', word: 'Ếch',     group: 'hard' },
+  { letter: 'Ô', emoji: '🚗', word: 'Ô tô',    group: 'hard' },
+  { letter: 'Ơ', emoji: '🌶️', word: 'Ớt',     group: 'hard' },
+  { letter: 'Ư', emoji: '💦', word: 'Ướt',     group: 'hard' },
+];
 const ConfettiParticle = ({ anim, x, emoji, size }) => {
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -340] });
   const opacity    = anim.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 0.9, 0] });
@@ -2111,6 +2147,253 @@ const PuzzleGame = ({ playSound, onExit }) => {
 };
 
 // ============================================
+// GAME 4: LEARN VIETNAMESE LETTERS
+// ============================================
+
+const LETTER_BTN_COLORS = [
+  ['#4facfe', '#00c6fb'],
+  ['#fa8231', '#f7b733'],
+  ['#f953c6', '#b91d73'],
+  ['#43e97b', '#38f9d7'],
+];
+
+const LetterRewardModal = ({ visible, stars, levelIndex, onContinue, onRetry, onExit, playSound }) => {
+  const starScales = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+  const confettiAnims = useRef(Array.from({ length: 18 }, () => new Animated.Value(0))).current;
+  const celebStoppedRef = useRef(false);
+  const timerIdsRef = useRef([]);
+
+  const confettiData = useMemo(() =>
+    confettiAnims.map((_, i) => ({
+      x: Math.floor(Math.random() * (SCREEN_WIDTH - 30)),
+      emoji: CONFETTI_EMOJIS[i % CONFETTI_EMOJIS.length],
+      size: 14 + Math.floor(Math.random() * 14),
+    })), []);
+
+  const stopAll = useCallback(() => {
+    celebStoppedRef.current = true;
+    timerIdsRef.current.forEach(clearTimeout);
+    timerIdsRef.current = [];
+    confettiAnims.forEach((a) => { a.stopAnimation(); a.setValue(0); });
+  }, [confettiAnims]);
+
+  const schedule = useCallback((ms, fn) => {
+    const id = setTimeout(() => { if (!celebStoppedRef.current) fn(); }, ms);
+    timerIdsRef.current.push(id);
+  }, []);
+
+  useEffect(() => {
+    if (!visible) { stopAll(); return; }
+    celebStoppedRef.current = false;
+    starScales.forEach((a) => a.setValue(0));
+    schedule(120, () => playSound('win'));
+    [0, 1, 2].forEach((i) => {
+      if (i < stars) {
+        schedule(300 + i * 320, () => {
+          playSound(`star${i + 1}`);
+          Animated.spring(starScales[i], { toValue: 1, useNativeDriver: true, bounciness: 20, speed: 16 }).start();
+        });
+      }
+    });
+    const burst = () => {
+      if (celebStoppedRef.current) return;
+      confettiAnims.forEach((a) => { a.stopAnimation(); a.setValue(0); });
+      Animated.stagger(40,
+        confettiAnims.map((a) => Animated.timing(a, { toValue: 1, duration: 1200, useNativeDriver: true }))
+      ).start(() => {
+        if (celebStoppedRef.current) return;
+        const id = setTimeout(burst, 200);
+        timerIdsRef.current.push(id);
+      });
+    };
+    const id = setTimeout(burst, 160);
+    timerIdsRef.current.push(id);
+    return () => stopAll();
+  }, [visible, stars]);
+
+  const praiseText = stars === 3 ? 'Xuất sắc! 🌟' : stars === 2 ? 'Giỏi lắm! 👏' : 'Cố lên nhé! 💪';
+  const isLastLevel = levelIndex >= LETTER_LEVEL_ORDER.length - 1;
+  const continueLabel = stars <= 1 ? 'Chơi lại' : isLastLevel ? 'Về chọn game' : 'Tiếp theo ▶';
+
+  const handleMainBtn = () => {
+    stopAll();
+    playSound('tap');
+    if (stars <= 1) { onRetry(); }
+    else if (isLastLevel) { onExit(); }
+    else { onContinue(); }
+  };
+
+  const handleExitBtn = () => { stopAll(); playSound('tap'); onExit(); };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+      <View style={styles.letterModalOverlay}>
+        {confettiAnims.map((anim, i) => (
+          <ConfettiParticle key={i} anim={anim} x={confettiData[i].x} emoji={confettiData[i].emoji} size={confettiData[i].size} />
+        ))}
+        <View style={styles.letterRewardCard}>
+          <Text style={styles.letterRewardTitle}>Bé làm tốt lắm!</Text>
+          <Text style={styles.letterRewardPraise}>{praiseText}</Text>
+          <View style={{ flexDirection: 'row', gap: 10, marginVertical: 14 }}>
+            {[0, 1, 2].map((i) => (
+              <Animated.Text key={i} style={{ fontSize: 42, transform: [{ scale: starScales[i] }] }}>
+                {i < stars ? '⭐' : '🌑'}
+              </Animated.Text>
+            ))}
+          </View>
+          <AnimatedPressable onPress={handleMainBtn} style={{ width: '100%', marginTop: 8 }}>
+            <LinearGradient colors={['#7C3AED', '#EC4899']} style={styles.letterRewardBtn}>
+              <Text style={styles.letterRewardBtnText}>{continueLabel}</Text>
+            </LinearGradient>
+          </AnimatedPressable>
+          <AnimatedPressable onPress={handleExitBtn} style={{ width: '100%', marginTop: 12 }}>
+            <LinearGradient colors={['#667EEA', '#764BA2']} style={styles.letterRewardBtn}>
+              <Text style={styles.letterRewardBtnText}>Về chọn game</Text>
+            </LinearGradient>
+          </AnimatedPressable>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const LetterGame = ({ playSound, onExit }) => {
+  const LETTER_POOL = {
+    easy:   VIET_ALPHABET.filter((l) => l.group === 'easy'),
+    medium: VIET_ALPHABET.filter((l) => l.group !== 'hard'),
+    hard:   VIET_ALPHABET,
+  };
+
+  const LETTER_LEVELS = {
+    easy:   { name: 'Dễ',  optionCount: 2, roundsToWin: 5 },
+    medium: { name: 'Vừa', optionCount: 3, roundsToWin: 5 },
+    hard:   { name: 'Khó', optionCount: 4, roundsToWin: 5 },
+  };
+
+  const [selectedLevel, setSelectedLevel]     = useState('easy');
+  const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
+  const [roundData, setRoundData]             = useState(null);
+  const [currentRound, setCurrentRound]       = useState(1);
+  const [wrongPicks, setWrongPicks]           = useState(0);
+  const [selectedWrong, setSelectedWrong]     = useState(null);
+  const [selectedCorrect, setSelectedCorrect] = useState(null);
+  const [showPopup, setShowPopup]             = useState(false);
+  const [popupStars, setPopupStars]           = useState(0);
+
+  const generateRound = useCallback((levelKey) => {
+    const pool = LETTER_POOL[levelKey];
+    const count = LETTER_LEVELS[levelKey].optionCount;
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const answer = shuffled[0];
+    const options = [answer, ...shuffled.slice(1, count)].sort(() => Math.random() - 0.5);
+    setRoundData({ answer, options });
+    setSelectedWrong(null);
+    setSelectedCorrect(null);
+  }, []);
+
+  const startLevel = useCallback((levelKey) => {
+    const idx = LETTER_LEVEL_ORDER.indexOf(levelKey);
+    setSelectedLevel(levelKey);
+    setCurrentLevelIndex(idx);
+    setCurrentRound(1);
+    setWrongPicks(0);
+    setShowPopup(false);
+    generateRound(levelKey);
+  }, [generateRound]);
+
+  useEffect(() => { startLevel('easy'); }, []);
+
+  const handlePick = (pickedLetter) => {
+    if (!roundData || selectedCorrect) return;
+    if (pickedLetter === roundData.answer.letter) {
+      playSound('match');
+      setSelectedCorrect(pickedLetter);
+      const next = currentRound + 1;
+      if (next > LETTER_LEVELS[selectedLevel].roundsToWin) {
+        const currentWrongPicks = wrongPicks;
+        setTimeout(() => {
+          const s = currentWrongPicks === 0 ? 3 : currentWrongPicks <= 2 ? 2 : 1;
+          setPopupStars(s);
+          setShowPopup(true);
+          setSelectedCorrect(null);
+        }, 800);
+      } else {
+        setTimeout(() => {
+          setCurrentRound(next);
+          generateRound(selectedLevel);
+        }, 800);
+      }
+    } else {
+      playSound('wrong');
+      setWrongPicks((w) => w + 1);
+      setSelectedWrong(pickedLetter);
+      setTimeout(() => setSelectedWrong(null), 500);
+    }
+  };
+
+  if (!roundData) return null;
+
+  const level = LETTER_LEVELS[selectedLevel];
+  const isGrid = level.optionCount === 4;
+
+  return (
+    <LinearGradient colors={['#7C3AED', '#EC4899']} style={{ flex: 1 }}>
+      <StatusBar barStyle="light-content" />
+      <View style={[styles.header, { marginTop: 44 }]}>
+        <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
+          <Text style={styles.backButtonText}>◀ Về</Text>
+        </AnimatedPressable>
+        <View style={styles.statPill}>
+          <Text style={styles.statPillText}>Câu {currentRound}/{level.roundsToWin}</Text>
+        </View>
+      </View>
+
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
+        <View style={styles.letterWordCard}>
+          <Text style={styles.letterWordEmoji}>{roundData.answer.emoji}</Text>
+          <Text style={styles.letterWordText}>{roundData.answer.word}</Text>
+        </View>
+
+        <Text style={styles.letterQuestion}>Chữ đầu tiên là chữ gì?</Text>
+
+        <View style={[styles.letterOptionsWrap, isGrid && styles.letterOptionsGrid]}>
+          {roundData.options.map((item, idx) => {
+            const isWrong   = selectedWrong === item.letter;
+            const isCorrect = selectedCorrect === item.letter;
+            const colors    = isCorrect
+              ? ['#43E97B', '#38F9D7']
+              : isWrong
+              ? ['#EF5350', '#E53935']
+              : LETTER_BTN_COLORS[idx % 4];
+            return (
+              <AnimatedPressable
+                key={item.letter}
+                onPress={() => handlePick(item.letter)}
+                disabled={!!selectedCorrect}
+              >
+                <LinearGradient colors={colors} style={[styles.letterBtn, isGrid && styles.letterBtnGrid]}>
+                  <Text style={styles.letterBtnText}>{item.letter}</Text>
+                </LinearGradient>
+              </AnimatedPressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <LetterRewardModal
+        visible={showPopup}
+        stars={popupStars}
+        levelIndex={currentLevelIndex}
+        onContinue={() => { setShowPopup(false); startLevel(LETTER_LEVEL_ORDER[currentLevelIndex + 1]); }}
+        onRetry={() => { setShowPopup(false); startLevel(selectedLevel); }}
+        onExit={onExit}
+        playSound={playSound}
+      />
+    </LinearGradient>
+  );
+};
+
+// ============================================
 // MAIN APP (HOME)
 // ============================================
 export default function App() {
@@ -2222,6 +2505,7 @@ export default function App() {
     if (currentGame === 'memory')   gameScreen = <MemoryGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
     if (currentGame === 'puzzle')   gameScreen = <PuzzleGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
     if (currentGame === 'garden')   gameScreen = <GardenHarvestGame  playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
+    if (currentGame === 'letter')   gameScreen = <LetterGame         playSound={playSound} onExit={handleExit} />;
     return (
       <View style={{ flex: 1 }}>
         {gameScreen}
@@ -2318,6 +2602,17 @@ export default function App() {
                 <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🌱🧺</Text>
               </View>
               <View style={styles.gameButtonSparkle}><Text style={styles.gameButtonSparkleText}>💫</Text></View>
+              <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
+            </LinearGradient>
+          </AnimatedPressable>
+
+          <AnimatedPressable onPress={() => handleGameSelect('letter')}>
+            <LinearGradient colors={['#7C3AED', '#EC4899']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+              <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🔤</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.gameButtonText, { fontFamily: F }]}>Học Chữ Cái</Text>
+                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>Nhận biết chữ cái Việt Nam</Text>
+              </View>
               <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
             </LinearGradient>
           </AnimatedPressable>
@@ -3485,5 +3780,103 @@ const styles = StyleSheet.create({
   foundBorder: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     borderWidth: 3, borderColor: '#18C66A',
+  },
+
+  // ── Letter game ──
+  letterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  letterRewardCard: {
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderRadius: 32,
+    padding: 28,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 400,
+    elevation: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+  },
+  letterRewardTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#7C3AED',
+    textAlign: 'center',
+  },
+  letterRewardPraise: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#666',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  letterRewardBtn: {
+    borderRadius: 28,
+    minHeight: 58,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 7,
+  },
+  letterRewardBtnText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  letterWordCard: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 28,
+    padding: 28,
+    alignItems: 'center',
+    marginBottom: 20,
+    width: '88%',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+  },
+  letterWordEmoji: { fontSize: 96, marginBottom: 8 },
+  letterWordText:  { fontSize: 34, fontWeight: '900', color: '#333', textAlign: 'center' },
+  letterQuestion:  {
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.95)',
+    fontWeight: '700',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  letterOptionsWrap: { flexDirection: 'row', gap: 12, justifyContent: 'center' },
+  letterOptionsGrid: { flexWrap: 'wrap', width: '80%' },
+  letterBtn: {
+    borderRadius: 20,
+    width: 120,
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+  },
+  letterBtnGrid: { width: '45%' },
+  letterBtnText: {
+    fontSize: 56,
+    fontWeight: '900',
+    color: '#FFF',
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
 });
