@@ -3429,13 +3429,7 @@ const styles = StyleSheet.create({
   gardenActiveCluster: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: FARM.cardHintBorder,
-    borderRadius: 20,
-    padding: 6,
-    backgroundColor: 'rgba(255,255,255,0.35)',
     gap: 8,
-    ...SHADOWS.header,
   },
   gardenPlotWrap: {
     borderRadius: 18,
