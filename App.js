@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions
 import { LinearGradient } from 'expo-linear-gradient';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
 import * as Updates from 'expo-updates';
 import { useFonts, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black } from '@expo-google-fonts/nunito';
 import { Ionicons } from '@expo/vector-icons';
@@ -519,40 +520,38 @@ const getTierIcon = (tier) => {
   }
 };
 
-// ============ LETTER GAME DATA ============
-const LETTER_LEVEL_ORDER = ['easy', 'medium', 'hard'];
-
-const VIET_ALPHABET = [
-  // Nhóm easy — chữ đơn phổ biến (10)
-  { letter: 'A', emoji: '👕', word: 'Áo',      group: 'easy' },
-  { letter: 'B', emoji: '🦋', word: 'Bướm',    group: 'easy' },
-  { letter: 'C', emoji: '🐟', word: 'Cá',      group: 'easy' },
-  { letter: 'D', emoji: '🍉', word: 'Dưa hấu', group: 'easy' },
-  { letter: 'E', emoji: '👶', word: 'Em bé',   group: 'easy' },
-  { letter: 'G', emoji: '🐔', word: 'Gà',      group: 'easy' },
-  { letter: 'H', emoji: '🌸', word: 'Hoa',     group: 'easy' },
-  { letter: 'K', emoji: '🍬', word: 'Kẹo',     group: 'easy' },
-  { letter: 'L', emoji: '🍃', word: 'Lá',      group: 'easy' },
-  { letter: 'M', emoji: '🐱', word: 'Mèo',     group: 'easy' },
-  // Nhóm medium (10, pool = easy + medium = 20)
-  { letter: 'N', emoji: '🦌', word: 'Nai',     group: 'medium' },
-  { letter: 'O', emoji: '🐝', word: 'Ong',     group: 'medium' },
-  { letter: 'Q', emoji: '🍊', word: 'Quả cam', group: 'medium' },
-  { letter: 'R', emoji: '🐍', word: 'Rắn',     group: 'medium' },
-  { letter: 'S', emoji: '⭐', word: 'Sao',     group: 'medium' },
-  { letter: 'T', emoji: '🍎', word: 'Táo',     group: 'medium' },
-  { letter: 'U', emoji: '🥤', word: 'Uống',    group: 'medium' },
-  { letter: 'V', emoji: '🦆', word: 'Vịt',     group: 'medium' },
-  { letter: 'X', emoji: '🥭', word: 'Xoài',    group: 'medium' },
-  { letter: 'Y', emoji: '❤️', word: 'Yêu',     group: 'medium' },
-  // Nhóm hard — chữ có dấu phụ (7, pool = tất cả 27)
-  { letter: 'Ă', emoji: '🍽️', word: 'Ăn cơm', group: 'hard' },
-  { letter: 'Â', emoji: '🎵', word: 'Âm nhạc', group: 'hard' },
-  { letter: 'Đ', emoji: '💡', word: 'Đèn',     group: 'hard' },
-  { letter: 'Ê', emoji: '🐸', word: 'Ếch',     group: 'hard' },
-  { letter: 'Ô', emoji: '🚗', word: 'Ô tô',    group: 'hard' },
-  { letter: 'Ơ', emoji: '🌶️', word: 'Ớt',     group: 'hard' },
-  { letter: 'Ư', emoji: '💦', word: 'Ướt',     group: 'hard' },
+// ============ LETTER GAME DATA (29 chữ cái tiếng Việt, không gồm F J W Z) ============
+// Mỗi mục: chữ cái + minh hoạ (emoji → ảnh Twemoji) + từ gợi ý; phát âm qua TTS (expo-speech).
+const VIETNAMESE_ALPHABET = [
+  { letter: 'A',  emoji: '👕', word: 'Áo' },
+  { letter: 'Ă',  emoji: '🍚', word: 'Ăn cơm' },
+  { letter: 'Â',  emoji: '🎵', word: 'Âm nhạc' },
+  { letter: 'B',  emoji: '🦋', word: 'Bướm' },
+  { letter: 'C',  emoji: '🐟', word: 'Cá' },
+  { letter: 'D',  emoji: '🍉', word: 'Dưa hấu' },
+  { letter: 'Đ',  emoji: '💡', word: 'Đèn' },
+  { letter: 'E',  emoji: '👶', word: 'Em bé' },
+  { letter: 'Ê',  emoji: '🐸', word: 'Ếch' },
+  { letter: 'G',  emoji: '🐔', word: 'Gà' },
+  { letter: 'H',  emoji: '🌸', word: 'Hoa' },
+  { letter: 'I',  emoji: '🤫', word: 'Im lặng' },
+  { letter: 'K',  emoji: '🍬', word: 'Kẹo' },
+  { letter: 'L',  emoji: '🍃', word: 'Lá' },
+  { letter: 'M',  emoji: '🐱', word: 'Mèo' },
+  { letter: 'N',  emoji: '🦌', word: 'Nai' },
+  { letter: 'O',  emoji: '🐝', word: 'Ong' },
+  { letter: 'Ô',  emoji: '🚗', word: 'Ô tô' },
+  { letter: 'Ơ',  emoji: '🌶️', word: 'Ớt' },
+  { letter: 'P',  emoji: '📌', word: 'Pin' },
+  { letter: 'Q',  emoji: '🍊', word: 'Quả cam' },
+  { letter: 'R',  emoji: '🐍', word: 'Rắn' },
+  { letter: 'S',  emoji: '⭐', word: 'Sao' },
+  { letter: 'T',  emoji: '🍎', word: 'Táo' },
+  { letter: 'U',  emoji: '🥤', word: 'Uống nước' },
+  { letter: 'Ư',  emoji: '💦', word: 'Ướt' },
+  { letter: 'V',  emoji: '🦆', word: 'Vịt' },
+  { letter: 'X',  emoji: '🥭', word: 'Xoài' },
+  { letter: 'Y',  emoji: '❤️', word: 'Yêu thương' },
 ];
 const ConfettiParticle = ({ anim, x, emoji, size }) => {
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -340] });
@@ -2147,248 +2146,137 @@ const PuzzleGame = ({ playSound, onExit }) => {
 };
 
 // ============================================
-// GAME 4: LEARN VIETNAMESE LETTERS
+// GAME 4: LEARN VIETNAMESE LETTERS (bảng chữ cái + minh hoạ + phát âm)
 // ============================================
 
-const LETTER_BTN_COLORS = [
-  ['#4facfe', '#00c6fb'],
-  ['#fa8231', '#f7b733'],
-  ['#f953c6', '#b91d73'],
-  ['#43e97b', '#38f9d7'],
+const LETTER_ACTION_GRADIENTS = [
+  ['#8B5CF6', '#EC4899'],
+  ['#F97316', '#FBBF24'],
+  ['#0EA5E9', '#14B8A6'],
+  ['#10B981', '#34D399'],
+  ['#D946EF', '#A855F7'],
+  ['#6366F1', '#818CF8'],
 ];
 
-const LetterRewardModal = ({ visible, stars, levelIndex, onContinue, onRetry, onExit, playSound }) => {
-  const starScales = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
-  const confettiAnims = useRef(Array.from({ length: 18 }, () => new Animated.Value(0))).current;
-  const celebStoppedRef = useRef(false);
-  const timerIdsRef = useRef([]);
-
-  const confettiData = useMemo(() =>
-    confettiAnims.map((_, i) => ({
-      x: Math.floor(Math.random() * (SCREEN_WIDTH - 30)),
-      emoji: CONFETTI_EMOJIS[i % CONFETTI_EMOJIS.length],
-      size: 14 + Math.floor(Math.random() * 14),
-    })), []);
-
-  const stopAll = useCallback(() => {
-    celebStoppedRef.current = true;
-    timerIdsRef.current.forEach(clearTimeout);
-    timerIdsRef.current = [];
-    confettiAnims.forEach((a) => { a.stopAnimation(); a.setValue(0); });
-  }, [confettiAnims]);
-
-  const schedule = useCallback((ms, fn) => {
-    const id = setTimeout(() => { if (!celebStoppedRef.current) fn(); }, ms);
-    timerIdsRef.current.push(id);
-  }, []);
-
-  useEffect(() => {
-    if (!visible) { stopAll(); return; }
-    celebStoppedRef.current = false;
-    starScales.forEach((a) => a.setValue(0));
-    schedule(120, () => playSound('win'));
-    [0, 1, 2].forEach((i) => {
-      if (i < stars) {
-        schedule(300 + i * 320, () => {
-          playSound(`star${i + 1}`);
-          Animated.spring(starScales[i], { toValue: 1, useNativeDriver: true, bounciness: 20, speed: 16 }).start();
-        });
-      }
+const speakVietnameseLetter = (entry) => {
+  if (!entry) return;
+  const { letter, word } = entry;
+  const text = `Chữ ${letter}. ${word}.`;
+  try {
+    Speech.stop();
+    Speech.speak(text, {
+      language: 'vi-VN',
+      pitch: 1.0,
+      rate: 0.92,
     });
-    const burst = () => {
-      if (celebStoppedRef.current) return;
-      confettiAnims.forEach((a) => { a.stopAnimation(); a.setValue(0); });
-      Animated.stagger(40,
-        confettiAnims.map((a) => Animated.timing(a, { toValue: 1, duration: 1200, useNativeDriver: true }))
-      ).start(() => {
-        if (celebStoppedRef.current) return;
-        const id = setTimeout(burst, 200);
-        timerIdsRef.current.push(id);
-      });
-    };
-    const id = setTimeout(burst, 160);
-    timerIdsRef.current.push(id);
-    return () => stopAll();
-  }, [visible, stars]);
-
-  const praiseText = stars === 3 ? 'Xuất sắc! 🌟' : stars === 2 ? 'Giỏi lắm! 👏' : 'Cố lên nhé! 💪';
-  const isLastLevel = levelIndex >= LETTER_LEVEL_ORDER.length - 1;
-  const continueLabel = stars <= 1 ? 'Chơi lại' : isLastLevel ? 'Về chọn game' : 'Tiếp theo ▶';
-
-  const handleMainBtn = () => {
-    stopAll();
-    playSound('tap');
-    if (stars <= 1) { onRetry(); }
-    else if (isLastLevel) { onExit(); }
-    else { onContinue(); }
-  };
-
-  const handleExitBtn = () => { stopAll(); playSound('tap'); onExit(); };
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-      <View style={styles.letterModalOverlay}>
-        {confettiAnims.map((anim, i) => (
-          <ConfettiParticle key={i} anim={anim} x={confettiData[i].x} emoji={confettiData[i].emoji} size={confettiData[i].size} />
-        ))}
-        <View style={styles.letterRewardCard}>
-          <Text style={styles.letterRewardTitle}>Bé làm tốt lắm!</Text>
-          <Text style={styles.letterRewardPraise}>{praiseText}</Text>
-          <View style={{ flexDirection: 'row', gap: 10, marginVertical: 14 }}>
-            {[0, 1, 2].map((i) => (
-              <Animated.Text key={i} style={{ fontSize: 42, transform: [{ scale: starScales[i] }] }}>
-                {i < stars ? '⭐' : '🌑'}
-              </Animated.Text>
-            ))}
-          </View>
-          <AnimatedPressable onPress={handleMainBtn} style={{ width: '100%', marginTop: 8 }}>
-            <LinearGradient colors={['#7C3AED', '#EC4899']} style={styles.letterRewardBtn}>
-              <Text style={styles.letterRewardBtnText}>{continueLabel}</Text>
-            </LinearGradient>
-          </AnimatedPressable>
-          <AnimatedPressable onPress={handleExitBtn} style={{ width: '100%', marginTop: 12 }}>
-            <LinearGradient colors={['#667EEA', '#764BA2']} style={styles.letterRewardBtn}>
-              <Text style={styles.letterRewardBtnText}>Về chọn game</Text>
-            </LinearGradient>
-          </AnimatedPressable>
-        </View>
-      </View>
-    </Modal>
-  );
+  } catch {
+    // Thiết bị không hỗ trợ TTS hoặc chưa cài giọng đọc — bỏ qua, vẫn hiển thị chữ và hình.
+  }
 };
 
 const LetterGame = ({ playSound, onExit }) => {
-  const LETTER_POOL = {
-    easy:   VIET_ALPHABET.filter((l) => l.group === 'easy'),
-    medium: VIET_ALPHABET.filter((l) => l.group !== 'hard'),
-    hard:   VIET_ALPHABET,
+  const [index, setIndex] = useState(0);
+  const total = VIETNAMESE_ALPHABET.length;
+  const entry = VIETNAMESE_ALPHABET[index];
+  const listenGradient = LETTER_ACTION_GRADIENTS[index % LETTER_ACTION_GRADIENTS.length];
+  const prevGradient = LETTER_ACTION_GRADIENTS[(index + 3) % LETTER_ACTION_GRADIENTS.length];
+  const nextGradient = LETTER_ACTION_GRADIENTS[(index + 1) % LETTER_ACTION_GRADIENTS.length];
+
+  useEffect(() => {
+    const t = setTimeout(() => speakVietnameseLetter(entry), 280);
+    return () => {
+      clearTimeout(t);
+      try { Speech.stop(); } catch {}
+    };
+  }, [entry]);
+
+  useEffect(() => () => { try { Speech.stop(); } catch {} }, []);
+
+  const goPrev = () => {
+    playSound('tap');
+    setIndex((i) => (i <= 0 ? total - 1 : i - 1));
   };
 
-  const LETTER_LEVELS = {
-    easy:   { name: 'Dễ',  optionCount: 2, roundsToWin: 5 },
-    medium: { name: 'Vừa', optionCount: 3, roundsToWin: 5 },
-    hard:   { name: 'Khó', optionCount: 4, roundsToWin: 5 },
+  const goNext = () => {
+    playSound('tap');
+    setIndex((i) => (i >= total - 1 ? 0 : i + 1));
   };
 
-  const [selectedLevel, setSelectedLevel]     = useState('easy');
-  const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
-  const [roundData, setRoundData]             = useState(null);
-  const [currentRound, setCurrentRound]       = useState(1);
-  const [wrongPicks, setWrongPicks]           = useState(0);
-  const [selectedWrong, setSelectedWrong]     = useState(null);
-  const [selectedCorrect, setSelectedCorrect] = useState(null);
-  const [showPopup, setShowPopup]             = useState(false);
-  const [popupStars, setPopupStars]           = useState(0);
-
-  const generateRound = useCallback((levelKey) => {
-    const pool = LETTER_POOL[levelKey];
-    const count = LETTER_LEVELS[levelKey].optionCount;
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    const answer = shuffled[0];
-    const options = [answer, ...shuffled.slice(1, count)].sort(() => Math.random() - 0.5);
-    setRoundData({ answer, options });
-    setSelectedWrong(null);
-    setSelectedCorrect(null);
-  }, []);
-
-  const startLevel = useCallback((levelKey) => {
-    const idx = LETTER_LEVEL_ORDER.indexOf(levelKey);
-    setSelectedLevel(levelKey);
-    setCurrentLevelIndex(idx);
-    setCurrentRound(1);
-    setWrongPicks(0);
-    setShowPopup(false);
-    generateRound(levelKey);
-  }, [generateRound]);
-
-  useEffect(() => { startLevel('easy'); }, []);
-
-  const handlePick = (pickedLetter) => {
-    if (!roundData || selectedCorrect) return;
-    if (pickedLetter === roundData.answer.letter) {
-      playSound('match');
-      setSelectedCorrect(pickedLetter);
-      const next = currentRound + 1;
-      if (next > LETTER_LEVELS[selectedLevel].roundsToWin) {
-        const currentWrongPicks = wrongPicks;
-        setTimeout(() => {
-          const s = currentWrongPicks === 0 ? 3 : currentWrongPicks <= 2 ? 2 : 1;
-          setPopupStars(s);
-          setShowPopup(true);
-          setSelectedCorrect(null);
-        }, 800);
-      } else {
-        setTimeout(() => {
-          setCurrentRound(next);
-          generateRound(selectedLevel);
-        }, 800);
-      }
-    } else {
-      playSound('wrong');
-      setWrongPicks((w) => w + 1);
-      setSelectedWrong(pickedLetter);
-      setTimeout(() => setSelectedWrong(null), 500);
-    }
+  const replay = () => {
+    playSound('levelSelect');
+    speakVietnameseLetter(entry);
   };
-
-  if (!roundData) return null;
-
-  const level = LETTER_LEVELS[selectedLevel];
-  const isGrid = level.optionCount === 4;
 
   return (
     <LinearGradient colors={['#7C3AED', '#EC4899']} style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" />
       <View style={[styles.header, { marginTop: 44 }]}>
-        <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-          <Text style={styles.backButtonText}>◀ Về</Text>
+        <AnimatedPressable style={styles.backButton} onPress={() => { try { Speech.stop(); } catch {} playSound('tap'); onExit(); }}>
+          <Ionicons name="chevron-back" size={24} color="#6A66A8" />
         </AnimatedPressable>
-        <View style={styles.statPill}>
-          <Text style={styles.statPillText}>Câu {currentRound}/{level.roundsToWin}</Text>
-        </View>
+        <Text style={[styles.headerTitle, { color: '#FFF9F0', textShadowColor: 'rgba(57,8,89,0.35)', textShadowRadius: 3 }]}>🔤 Học chữ</Text>
+        <View style={{ width: 70 }} />
       </View>
 
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
-        <View style={styles.letterWordCard}>
-          <Text style={styles.letterWordEmoji}>{roundData.answer.emoji}</Text>
-          <Text style={styles.letterWordText}>{roundData.answer.word}</Text>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.letterLearnScroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.kidSelectIntroCard}>
+          <Text style={styles.kidSelectIntroTitle}>Học 29 chữ cái tiếng Việt</Text>
+          <Text style={styles.kidSelectIntroSub}>Chữ {index + 1}/{total} · 🖼️ Minh hoạ · 🔊 Phát âm</Text>
         </View>
 
-        <Text style={styles.letterQuestion}>Chữ đầu tiên là chữ gì?</Text>
-
-        <View style={[styles.letterOptionsWrap, isGrid && styles.letterOptionsGrid]}>
-          {roundData.options.map((item, idx) => {
-            const isWrong   = selectedWrong === item.letter;
-            const isCorrect = selectedCorrect === item.letter;
-            const colors    = isCorrect
-              ? ['#43E97B', '#38F9D7']
-              : isWrong
-              ? ['#EF5350', '#E53935']
-              : LETTER_BTN_COLORS[idx % 4];
-            return (
-              <AnimatedPressable
-                key={item.letter}
-                onPress={() => handlePick(item.letter)}
-                disabled={!!selectedCorrect}
-              >
-                <LinearGradient colors={colors} style={[styles.letterBtn, isGrid && styles.letterBtnGrid]}>
-                  <Text style={styles.letterBtnText}>{item.letter}</Text>
-                </LinearGradient>
-              </AnimatedPressable>
-            );
-          })}
+        <View style={styles.letterHeroCard}>
+          <View style={styles.letterHeroIconRing}>
+            <Icon value={entry.emoji} size={120} />
+          </View>
+          <Text style={styles.letterHeroLetter}>{entry.letter}</Text>
+          <Text style={styles.letterHeroHint}>Ví dụ: {entry.word}</Text>
         </View>
-      </View>
 
-      <LetterRewardModal
-        visible={showPopup}
-        stars={popupStars}
-        levelIndex={currentLevelIndex}
-        onContinue={() => { setShowPopup(false); startLevel(LETTER_LEVEL_ORDER[currentLevelIndex + 1]); }}
-        onRetry={() => { setShowPopup(false); startLevel(selectedLevel); }}
-        onExit={onExit}
-        playSound={playSound}
-      />
+        <AnimatedPressable onPress={replay} style={{ width: '100%', marginBottom: 14 }}>
+          <LinearGradient
+            colors={listenGradient}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={styles.letterListenCard}
+          >
+            <View style={styles.letterListenIconWrap}>
+              <Ionicons name="volume-high" size={34} color="#5B21B6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.letterListenTitle}>Nghe phát âm</Text>
+              <Text style={styles.letterListenSub}>Chạm để nghe lại</Text>
+            </View>
+            <Text style={styles.kidThemeSub}>▶</Text>
+          </LinearGradient>
+        </AnimatedPressable>
+
+        <View style={styles.letterNavRow}>
+          <AnimatedPressable onPress={goPrev} style={{ flex: 1 }}>
+            <LinearGradient colors={prevGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.letterNavCard}>
+              <View style={styles.letterNavIconWrap}>
+                <Ionicons name="play-back" size={28} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.letterNavTitle}>Chữ trước</Text>
+              </View>
+            </LinearGradient>
+          </AnimatedPressable>
+          <AnimatedPressable onPress={goNext} style={{ flex: 1 }}>
+            <LinearGradient colors={nextGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.letterNavCard}>
+              <View style={styles.letterNavIconWrap}>
+                <Ionicons name="play-forward" size={28} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.letterNavTitle}>Chữ sau</Text>
+              </View>
+            </LinearGradient>
+          </AnimatedPressable>
+        </View>
+      </ScrollView>
     </LinearGradient>
   );
 };
@@ -2611,7 +2499,7 @@ export default function App() {
               <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🔤</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gameButtonText, { fontFamily: F }]}>Học Chữ Cái</Text>
-                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>Nhận biết chữ cái Việt Nam</Text>
+                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>29 chữ · Hình · Phát âm</Text>
               </View>
               <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
             </LinearGradient>
@@ -3782,101 +3670,129 @@ const styles = StyleSheet.create({
     borderWidth: 3, borderColor: '#18C66A',
   },
 
-  // ── Letter game ──
-  letterModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
+  // ── Letter game (bảng chữ cái) ──
+  letterLearnScroll: {
+    paddingHorizontal: 16,
+    paddingBottom: 28,
+    paddingTop: 4,
   },
-  letterRewardCard: {
-    backgroundColor: 'rgba(255,255,255,0.97)',
-    borderRadius: 32,
-    padding: 28,
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 400,
-    elevation: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-  },
-  letterRewardTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#7C3AED',
-    textAlign: 'center',
-  },
-  letterRewardPraise: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#666',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  letterRewardBtn: {
+  letterHeroCard: {
+    backgroundColor: 'rgba(255,255,255,0.96)',
     borderRadius: 28,
-    minHeight: 58,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 16,
     width: '100%',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.65)',
+  },
+  letterHeroIconRing: {
+    width: 148,
+    height: 148,
+    borderRadius: 74,
+    backgroundColor: '#F5F3FF',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
+    borderWidth: 3,
+    borderColor: '#E9D5FF',
+    marginBottom: 14,
+  },
+  letterHeroLetter: {
+    fontSize: 72,
+    fontWeight: '900',
+    color: '#5B21B6',
+    letterSpacing: 2,
+  },
+  letterHeroHint: {
+    marginTop: 8,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#4B5563',
+    textAlign: 'center',
+  },
+  letterListenCard: {
+    borderRadius: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    minHeight: 88,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.27,
+    shadowRadius: 11,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.45)',
+  },
+  letterListenIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
+  letterListenTitle: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.28)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  letterListenSub: {
+    marginTop: 2,
+    color: '#FFFDEB',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  letterNavRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  letterNavCard: {
+    borderRadius: 22,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    elevation: 7,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 7,
+    shadowOpacity: 0.24,
+    shadowRadius: 9,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.42)',
   },
-  letterRewardBtnText: {
+  letterNavIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
+  },
+  letterNavTitle: {
     color: 'white',
     fontSize: 20,
     fontWeight: '900',
-    textAlign: 'center',
-  },
-  letterWordCard: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 28,
-    padding: 28,
-    alignItems: 'center',
-    marginBottom: 20,
-    width: '88%',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-  },
-  letterWordEmoji: { fontSize: 96, marginBottom: 8 },
-  letterWordText:  { fontSize: 34, fontWeight: '900', color: '#333', textAlign: 'center' },
-  letterQuestion:  {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.95)',
-    fontWeight: '700',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  letterOptionsWrap: { flexDirection: 'row', gap: 12, justifyContent: 'center' },
-  letterOptionsGrid: { flexWrap: 'wrap', width: '80%' },
-  letterBtn: {
-    borderRadius: 20,
-    width: 120,
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 8,
-  },
-  letterBtnGrid: { width: '45%' },
-  letterBtnText: {
-    fontSize: 56,
-    fontWeight: '900',
-    color: '#FFF',
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 0, height: 2 },
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
 });
