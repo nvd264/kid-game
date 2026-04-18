@@ -1428,39 +1428,59 @@ const gardenPlotInStartZone = (plotId) => {
   );
 };
 
-/** Scan playable cells: 3 consecutive ripe same-crop in a row or column. */
-const gardenFindTripleCropLines = (plots) => {
+const gardenPlotNeighbors4 = (plotId) => {
+  const col = plotId % GARDEN_GRID_COLS;
+  const row = Math.floor(plotId / GARDEN_GRID_COLS);
+  const out = [];
+  if (row > 0) out.push((row - 1) * GARDEN_GRID_COLS + col);
+  if (row < GARDEN_GRID_ROWS - 1) out.push((row + 1) * GARDEN_GRID_COLS + col);
+  if (col > 0) out.push(row * GARDEN_GRID_COLS + (col - 1));
+  if (col < GARDEN_GRID_COLS - 1) out.push(row * GARDEN_GRID_COLS + (col + 1));
+  return out;
+};
+
+/** Hai ô chín liền kề cùng loại (ngang hoặc dọc), cả hai đều unlocked. */
+const gardenFindAdjacentRipePairs = (plots) => {
   const byId = new Map(plots.map(p => [p.id, p]));
-  const ripeSame = (a, b, c) => {
+  const ripePair = (a, b) => {
     const pa = byId.get(a);
     const pb = byId.get(b);
-    const pc = byId.get(c);
-    if (!pa?.unlocked || !pb?.unlocked || !pc?.unlocked) return false; // playable strip
-    if (pa.state !== 'ripe' || pb.state !== 'ripe' || pc.state !== 'ripe') return false;
+    if (!pa?.unlocked || !pb?.unlocked) return false;
+    if (pa.state !== 'ripe' || pb.state !== 'ripe') return false;
     const na = pa.crop?.name;
     const nb = pb.crop?.name;
-    const nc = pc.crop?.name;
-    return na && na === nb && nb === nc;
+    return na && na === nb;
   };
-  const lines = [];
+  const pairs = [];
   for (let row = 0; row < GARDEN_GRID_ROWS; row++) {
-    for (let c = 0; c <= GARDEN_GRID_COLS - 3; c++) {
+    for (let c = 0; c <= GARDEN_GRID_COLS - 2; c++) {
       const base = row * GARDEN_GRID_COLS + c;
-      const ids = [base, base + 1, base + 2];
-      if (ripeSame(...ids)) lines.push(ids);
+      const ids = [base, base + 1];
+      if (ripePair(...ids)) pairs.push(ids);
     }
   }
   for (let col = 0; col < GARDEN_GRID_COLS; col++) {
-    for (let r = 0; r <= GARDEN_GRID_ROWS - 3; r++) {
-      const ids = [
-        r * GARDEN_GRID_COLS + col,
-        (r + 1) * GARDEN_GRID_COLS + col,
-        (r + 2) * GARDEN_GRID_COLS + col,
-      ];
-      if (ripeSame(...ids)) lines.push(ids);
+    for (let r = 0; r <= GARDEN_GRID_ROWS - 2; r++) {
+      const a = r * GARDEN_GRID_COLS + col;
+      const b = (r + 1) * GARDEN_GRID_COLS + col;
+      if (ripePair(a, b)) pairs.push([a, b]);
     }
   }
-  return lines;
+  return pairs;
+};
+
+/** Ô khóa 4-cạnh kề một trong hai ô của cặp (ưu tiên ngẫu nhiên trong tập ứng viên). */
+const gardenPickLockedNeighborOfPair = (pairIds, plots) => {
+  const [a, b] = pairIds;
+  const cand = new Set();
+  gardenPlotNeighbors4(a).forEach((id) => cand.add(id));
+  gardenPlotNeighbors4(b).forEach((id) => cand.add(id));
+  const locked = [...cand].filter((id) => {
+    const p = plots.find((x) => x.id === id);
+    return p && !p.unlocked;
+  });
+  if (locked.length === 0) return null;
+  return locked[Math.floor(Math.random() * locked.length)];
 };
 
 const GROW_PHASE_DURATION = 1200;
@@ -1533,7 +1553,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const dragFromFabRef = useRef(false);
   /** True while dragging tool from dock handle (not field paint) — full feedback + floating icon. */
   const gardenDragFromDockRef = useRef(false);
-  /** Line signatures (sorted plot ids) already rewarded with +1 unlock this session. */
+  /** Pair signatures (sorted plot ids) already rewarded with +1 unlock this session. */
   const gardenComboRewardedRef = useRef(new Set());
 
   const gardenLineSignature = (ids) => [...ids].sort((a, b) => a - b).join(',');
@@ -1549,22 +1569,32 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     return !!p?.unlocked;
   }, []);
 
-  /** Mở thêm 1 ô khóa ngẫu nhiên cho mỗi hàng/cột 3 quả chín cùng loại (chưa thưởng). */
+  /** Mở 1 ô khóa kề cặp 2 quả chín giống nhau (chưa thưởng) + hiệu ứng nổ trên cặp. */
   const applyAllComboUnlocks = useCallback((plotsIn) => {
     let out = plotsIn;
     let changed = false;
-    const lines = gardenFindTripleCropLines(out);
-    for (let i = 0; i < lines.length; i++) {
-      const ids = lines[i];
+    const pairs = gardenFindAdjacentRipePairs(out);
+    for (let i = 0; i < pairs.length; i++) {
+      const ids = pairs[i];
       const sig = gardenLineSignature(ids);
       if (gardenComboRewardedRef.current.has(sig)) continue;
-      const locked = out.filter(p => !p.unlocked);
-      if (locked.length === 0) {
+      const pick = gardenPickLockedNeighborOfPair(ids, out);
+      if (pick == null) {
         gardenComboRewardedRef.current.add(sig);
         continue;
       }
-      const pick = locked[Math.floor(Math.random() * locked.length)].id;
       gardenComboRewardedRef.current.add(sig);
+      ids.forEach((pid) => {
+        const anim = plotAnimsRef.current[pid];
+        if (!anim?.toolFlash) return;
+        anim.toolFlash.stopAnimation();
+        anim.toolFlash.setValue(1);
+        Animated.sequence([
+          Animated.timing(anim.toolFlash, { toValue: 1.35, duration: 90, useNativeDriver: true }),
+          Animated.timing(anim.toolFlash, { toValue: 1, duration: 160, useNativeDriver: true }),
+        ]).start();
+      });
+      if (!gardenFieldDragActiveRef.current) playSound('match');
       out = out.map(p =>
         p.id === pick
           ? { ...p, unlocked: true, previewCrop: p.previewCrop ?? randomGardenCrop() }
@@ -1573,7 +1603,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
       changed = true;
     }
     return changed ? out : null;
-  }, []);
+  }, [playSound]);
 
   const initPlotAnim = useCallback((id) => {
     if (plotAnimsRef.current[id]) {
@@ -2038,7 +2068,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const gradient = getPlotGradient(plot);
     const iconSz = Math.round(plotVectorIconSize * (isLocked ? 0.82 : 1));
     const previewArt = plot.previewCrop?.ripeArt;
-    const lockIconSize = Math.round(Math.min(plotSize * 0.52, 44));
     const plotMeasureShell = (
       <View>
         <LinearGradient
@@ -2102,9 +2131,15 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
               </View>
             )}
             {isLocked && (
-              <View style={styles.gardenLockedCenter} pointerEvents="none">
-                <MaterialCommunityIcons name="lock" size={lockIconSize} color={FARM.playButtonShadow} />
-              </View>
+              <LinearGradient
+                colors={[FARM.playButtonShadow, FARM.titleColor]}
+                start={{ x: 0.2, y: 0 }}
+                end={{ x: 0.85, y: 1 }}
+                style={styles.gardenLockedStone}
+                pointerEvents="none"
+              >
+                <View style={styles.gardenLockedStoneHighlight} />
+              </LinearGradient>
             )}
         </LinearGradient>
       </View>
@@ -2137,8 +2172,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
 
   const gardenFieldBlock = (
     <View style={[styles.gardenFieldPatch, styles.gardenFieldPressablePortrait]}>
-      <Text style={[styles.gardenInstructionText, { fontFamily: F8, marginBottom: 8, paddingHorizontal: 4 }]} numberOfLines={2}>
-        Ruộng giữa 3×3: cuốc, tưới, thu hoạch. Ba quả chín cùng loại trên một hàng hoặc một cột mở thêm một ô mới.
+      <Text style={[styles.gardenInstructionText, { fontFamily: F8, marginBottom: 8, paddingHorizontal: 4 }]} numberOfLines={3}>
+        Ruộng giữa 3×3: cuốc, tưới, thu hoạch. Hai quả chín giống nhau cạnh nhau (ngang hoặc dọc) mở thêm một ô đất đá kề bên.
       </Text>
       <View style={styles.gardenPlotGridColumn}>
         <View
@@ -3803,14 +3838,25 @@ const styles = StyleSheet.create({
     opacity: 0.38,
     position: 'absolute',
   },
-  gardenLockedCenter: {
+  gardenLockedStone: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    left: '10%',
+    top: '10%',
+    width: '80%',
+    height: '80%',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(62,39,35,0.55)',
+    overflow: 'hidden',
+    justifyContent: 'flex-start',
+  },
+  gardenLockedStoneHighlight: {
+    position: 'absolute',
+    top: 4,
+    left: 5,
+    width: '42%',
+    height: '28%',
+    borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.22)',
   },
   gardenPlotCropImage: {
