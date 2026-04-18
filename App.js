@@ -1407,18 +1407,60 @@ const GARDEN_CROPS = [
   { name: 'Cà tím',     ripeArt: require('./assets/ui/garden/crop-eggplant.png') },
   { name: 'Xà lách',    ripeArt: require('./assets/ui/garden/crop-lettuce.png') },
 ];
-/** Large preview grid; only the first ACTIVE zone (2×3) accepts tools. */
+/** Farm-style board: only `plot.unlocked` cells accept tools; start = center 3×3. */
 const GARDEN_GRID_COLS = 7;
 const GARDEN_GRID_ROWS = 5;
 const GARDEN_GRID_TOTAL = GARDEN_GRID_COLS * GARDEN_GRID_ROWS;
-const GARDEN_ACTIVE_COLS = 4;
-const GARDEN_ACTIVE_ROWS = 3;
-const GARDEN_ACTIVE_COUNT = GARDEN_ACTIVE_COLS * GARDEN_ACTIVE_ROWS;
+/** Center 3×3 on 7×5: columns 2–4, rows 1–3. */
+const GARDEN_CENTER_COL0 = 2;
+const GARDEN_CENTER_ROW0 = 1;
 
-const gardenPlotIsActive = (plotId) => {
+const randomGardenCrop = () => GARDEN_CROPS[Math.floor(Math.random() * GARDEN_CROPS.length)];
+
+const gardenPlotInStartZone = (plotId) => {
   const col = plotId % GARDEN_GRID_COLS;
   const row = Math.floor(plotId / GARDEN_GRID_COLS);
-  return row < GARDEN_ACTIVE_ROWS && col < GARDEN_ACTIVE_COLS;
+  return (
+    col >= GARDEN_CENTER_COL0 &&
+    col < GARDEN_CENTER_COL0 + 3 &&
+    row >= GARDEN_CENTER_ROW0 &&
+    row < GARDEN_CENTER_ROW0 + 3
+  );
+};
+
+/** Scan playable cells: 3 consecutive ripe same-crop in a row or column. */
+const gardenFindTripleCropLines = (plots) => {
+  const byId = new Map(plots.map(p => [p.id, p]));
+  const ripeSame = (a, b, c) => {
+    const pa = byId.get(a);
+    const pb = byId.get(b);
+    const pc = byId.get(c);
+    if (!pa?.unlocked || !pb?.unlocked || !pc?.unlocked) return false; // playable strip
+    if (pa.state !== 'ripe' || pb.state !== 'ripe' || pc.state !== 'ripe') return false;
+    const na = pa.crop?.name;
+    const nb = pb.crop?.name;
+    const nc = pc.crop?.name;
+    return na && na === nb && nb === nc;
+  };
+  const lines = [];
+  for (let row = 0; row < GARDEN_GRID_ROWS; row++) {
+    for (let c = 0; c <= GARDEN_GRID_COLS - 3; c++) {
+      const base = row * GARDEN_GRID_COLS + c;
+      const ids = [base, base + 1, base + 2];
+      if (ripeSame(...ids)) lines.push(ids);
+    }
+  }
+  for (let col = 0; col < GARDEN_GRID_COLS; col++) {
+    for (let r = 0; r <= GARDEN_GRID_ROWS - 3; r++) {
+      const ids = [
+        r * GARDEN_GRID_COLS + col,
+        (r + 1) * GARDEN_GRID_COLS + col,
+        (r + 2) * GARDEN_GRID_COLS + col,
+      ];
+      if (ripeSame(...ids)) lines.push(ids);
+    }
+  }
+  return lines;
 };
 
 const GROW_PHASE_DURATION = 1200;
@@ -1434,24 +1476,25 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const F = fontsLoaded ? 'Nunito_900Black' : undefined;
   const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
   const { width: winW, height: winH } = useWindowDimensions();
-  /** Garden is locked to landscape: always use the larger dimension as width. */
-  const landscapeW = Math.max(winW, winH);
-  const landscapeH = Math.min(winW, winH);
+  /** Farm Saga–style portrait board (narrow = width). */
+  const portraitW = Math.min(winW, winH);
+  const portraitH = Math.max(winW, winH);
 
   /** Near-flush tiles; hit-test uses math on this stride (not measureInWindow). */
-  const plotGap = 1;
-  const gardenDockWidth = 116;
+  const plotGap = 2;
+  const gardenDockRowMinH = 132;
   const plotSize = useMemo(() => {
     const cols = GARDEN_GRID_COLS;
     const rows = GARDEN_GRID_ROWS;
-    const fieldPadX = 12;
-    const bottomPad = 8;
-    const availW = landscapeW - gardenDockWidth - fieldPadX * 2;
-    const availH = landscapeH - bottomPad;
+    const fieldPadX = 10;
+    const fieldPadTop = 8;
+    const fieldPadBottom = 6;
+    const availW = portraitW - fieldPadX * 2;
+    const availH = portraitH - gardenDockRowMinH - fieldPadTop - fieldPadBottom;
     const wCell = (availW - plotGap * (cols - 1)) / cols;
     const hCell = (availH - plotGap * (rows - 1)) / rows;
-    return Math.max(56, Math.min(88, Math.floor(Math.min(wCell, hCell))));
-  }, [landscapeW, landscapeH, plotGap, gardenDockWidth]);
+    return Math.max(44, Math.min(76, Math.floor(Math.min(wCell, hCell))));
+  }, [portraitW, portraitH, plotGap, gardenDockRowMinH]);
 
   // ── State ──
   const [plots, setPlots] = useState([]);
@@ -1490,6 +1533,47 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const dragFromFabRef = useRef(false);
   /** True while dragging tool from dock handle (not field paint) — full feedback + floating icon. */
   const gardenDragFromDockRef = useRef(false);
+  /** Line signatures (sorted plot ids) already rewarded with +1 unlock this session. */
+  const gardenComboRewardedRef = useRef(new Set());
+
+  const gardenLineSignature = (ids) => [...ids].sort((a, b) => a - b).join(',');
+  const gardenForgetComboSignaturesTouchingPlot = useCallback((plotId) => {
+    const s = gardenComboRewardedRef.current;
+    [...s].forEach((key) => {
+      if (key.split(',').map(Number).includes(plotId)) s.delete(key);
+    });
+  }, []);
+
+  const gardenPlotIsPlayable = useCallback((plotId) => {
+    const p = plotsRef.current.find((x) => x.id === plotId);
+    return !!p?.unlocked;
+  }, []);
+
+  /** Mở thêm 1 ô khóa ngẫu nhiên cho mỗi hàng/cột 3 quả chín cùng loại (chưa thưởng). */
+  const applyAllComboUnlocks = useCallback((plotsIn) => {
+    let out = plotsIn;
+    let changed = false;
+    const lines = gardenFindTripleCropLines(out);
+    for (let i = 0; i < lines.length; i++) {
+      const ids = lines[i];
+      const sig = gardenLineSignature(ids);
+      if (gardenComboRewardedRef.current.has(sig)) continue;
+      const locked = out.filter(p => !p.unlocked);
+      if (locked.length === 0) {
+        gardenComboRewardedRef.current.add(sig);
+        continue;
+      }
+      const pick = locked[Math.floor(Math.random() * locked.length)].id;
+      gardenComboRewardedRef.current.add(sig);
+      out = out.map(p =>
+        p.id === pick
+          ? { ...p, unlocked: true, previewCrop: p.previewCrop ?? randomGardenCrop() }
+          : p,
+      );
+      changed = true;
+    }
+    return changed ? out : null;
+  }, []);
 
   const initPlotAnim = useCallback((id) => {
     if (plotAnimsRef.current[id]) {
@@ -1518,9 +1602,16 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     ]).start();
   }, []);
 
-  // ── Init plots (full grid visible; only first 2×3 cells are playable) ──
+  // ── Init: toàn bộ lưới hiển thị; chỉ 3×3 giữa chơi được; ô khóa có preview cây random ──
   useEffect(() => {
-    const initial = Array.from({ length: GARDEN_GRID_TOTAL }, (_, i) => ({ id: i, state: 'empty', crop: null }));
+    gardenComboRewardedRef.current = new Set();
+    const initial = Array.from({ length: GARDEN_GRID_TOTAL }, (_, id) => ({
+      id,
+      state: 'empty',
+      crop: null,
+      unlocked: gardenPlotInStartZone(id),
+      previewCrop: randomGardenCrop(),
+    }));
     initial.forEach(p => initPlotAnim(p.id));
     setPlots(initial);
   }, [initPlotAnim]);
@@ -1529,11 +1620,11 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   useEffect(() => { plotsRef.current = plots; }, [plots]);
   useEffect(() => { selectedToolIdRef.current = selectedToolId; }, [selectedToolId]);
 
-  // ── Landscape while in garden (native); web keeps responsive layout ──
+  // ── Portrait board (Farm Saga–style); web keeps responsive layout ──
   useEffect(() => {
     (async () => {
       try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
       } catch {
         /* simulator / web */
       }
@@ -1561,8 +1652,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
 
   // ── Action handlers ──
   const handlePlant = useCallback((plotId) => {
-    if (!gardenPlotIsActive(plotId)) return;
-    const crop = GARDEN_CROPS[Math.floor(Math.random() * GARDEN_CROPS.length)];
+    if (!gardenPlotIsPlayable(plotId)) return;
+    const crop = randomGardenCrop();
     setPlots(prev => prev.map(p => p.id === plotId ? { ...p, state: 'planted', crop } : p));
     const anim = plotAnimsRef.current[plotId];
     const paintOnlyDrag = gardenFieldDragActiveRef.current && !gardenDragFromDockRef.current;
@@ -1587,11 +1678,11 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const inCellY = localY - row * stride;
     if (inCellX > plotSize || inCellY > plotSize) return null;
     const plotId = row * GARDEN_GRID_COLS + col;
-    if (!gardenPlotIsActive(plotId)) return null;
+    if (!gardenPlotIsPlayable(plotId)) return null;
     const plot = plotsRef.current.find(p => p.id === plotId);
     if (!plot || plot.state !== validState) return null;
     return plotId;
-  }, [plotSize, plotGap]);
+  }, [plotSize, plotGap, gardenPlotIsPlayable]);
 
   /** Page-space hit test (FAB drag); uses single grid origin — avoids per-plot measureInWindow. */
   const pickPlotUnderFinger = useCallback((pageX, pageY, validState) => {
@@ -1624,7 +1715,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   }, [plotSize, plotGap]);
 
   const handleWater = useCallback((plotId) => {
-    if (!gardenPlotIsActive(plotId)) return;
+    if (!gardenPlotIsPlayable(plotId)) return;
     setPlots(prev => {
       const plot = prev.find(p => p.id === plotId);
       if (!plot || plot.state !== 'planted') return prev;
@@ -1650,7 +1741,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
       setPlots(prev => {
         const plot = prev.find(p => p.id === plotId);
         if (!plot || plot.state !== 'growing') return prev;
-        return prev.map(p => p.id === plotId ? { ...p, state: 'ripe' } : p);
+        let next = prev.map(p => p.id === plotId ? { ...p, state: 'ripe' } : p);
+        const combo = applyAllComboUnlocks(next);
+        if (combo) next = combo;
+        return next;
       });
       const p2 = gardenFieldDragActiveRef.current && !gardenDragFromDockRef.current;
       if (!p2) playSound('match');
@@ -1663,15 +1757,16 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     }, GROW_PHASE_DURATION + RIPE_PHASE_DURATION);
 
     anim.timers.push(t1, t2);
-  }, [playSound]);
+  }, [playSound, applyAllComboUnlocks]);
 
   const handleHarvest = useCallback((plot) => {
-    if (!gardenPlotIsActive(plot.id)) return;
+    if (!gardenPlotIsPlayable(plot.id)) return;
     const anim = plotAnimsRef.current[plot.id];
     if (anim) {
       anim.timers.forEach(clearTimeout);
       anim.timers = [];
     }
+    gardenForgetComboSignaturesTouchingPlot(plot.id);
 
     const plotLayout = plotLayoutsRef.current[plot.id];
     const basketLayout = basketLayoutRef.current;
@@ -1706,7 +1801,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         Animated.spring(basketBounce, { toValue: 1, useNativeDriver: true, bounciness: 14, speed: 10 }),
       ]).start();
     }
-  }, [basketBounce, flyAnimOp, flyAnimX, flyAnimY, playSound]);
+  }, [basketBounce, flyAnimOp, flyAnimX, flyAnimY, playSound, gardenForgetComboSignaturesTouchingPlot]);
 
   // ── Drag from dock onto field: floating tool + apply (tool chosen via 3 buttons) ──
   const gardenDockDragPanRef = useRef(null);
@@ -1791,7 +1886,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   }
 
   const applyToolToPlotId = useCallback((plotId) => {
-    if (!gardenPlotIsActive(plotId)) return;
+    if (!gardenPlotIsPlayable(plotId)) return;
     const toolId = selectedToolIdRef.current;
     const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
     const plot = plotsRef.current.find(p => p.id === plotId);
@@ -1932,26 +2027,18 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     return [FARM.subtitleColor, FARM.playButtonShadow];
   };
 
-  /** Appealing pastels for locked tiles — distinct from active zone without being dull. */
-  const getPlotGradientLocked = (plot) => {
-    if (plot.state === 'empty')   return ['#E8F5E9', '#C8E6C9'];  // soft sage green
-    if (plot.state === 'planted') return ['#F3E5F5', '#E1BEE7'];  // soft lavender
-    if (plot.state === 'growing') return ['#E3F2FD', '#BBDEFB'];  // soft sky blue
-    if (plot.state === 'ripe')    return ['#FFF8E1', '#FFECB3'];  // warm golden
-    return ['#E8F5E9', '#C8E6C9'];
-  };
-
-  const plotIconLockedColor = FARM.bodyText;
-
-  const renderGardenCell = (plot, isLocked) => {
+  const renderGardenCell = (plot) => {
+    const isLocked = !plot.unlocked;
     const anim = plotAnimsRef.current[plot.id];
     const scaleTransform = anim
       ? [{ scale: anim.grow }, { scale: anim.toolFlash }]
       : [];
     const ripeArt = getRipeCropArt(plot);
     const isHovered = !isLocked && hoveredPlotId === plot.id;
-    const gradient = isLocked ? getPlotGradientLocked(plot) : getPlotGradient(plot);
+    const gradient = getPlotGradient(plot);
     const iconSz = Math.round(plotVectorIconSize * (isLocked ? 0.82 : 1));
+    const previewArt = plot.previewCrop?.ripeArt;
+    const lockIconSize = Math.round(Math.min(plotSize * 0.52, 44));
     const plotMeasureShell = (
       <View>
         <LinearGradient
@@ -1959,36 +2046,42 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           style={[
             styles.gardenPlot,
             { width: plotSize, height: plotSize },
-            plot.state === 'empty' && (isLocked ? styles.gardenPlotEmptyLocked : styles.gardenPlotEmpty),
+            plot.state === 'empty' && !isLocked && styles.gardenPlotEmpty,
             isHovered && styles.gardenPlotHovered,
-            isLocked && styles.gardenPlotLocked,
+            isLocked && styles.gardenPlotLockedOverlay,
           ]}
         >
-            {plot.state === 'empty' ? (
+            {isLocked && previewArt ? (
+              <Image
+                source={previewArt}
+                style={[styles.gardenPlotCropImage, styles.gardenLockedPreviewImage, { width: cropArtSize, height: cropArtSize }]}
+                resizeMode="contain"
+              />
+            ) : null}
+            {!isLocked && plot.state === 'empty' ? (
               <MaterialCommunityIcons
                 name={GARDEN_PLOT_ICON.empty.name}
                 size={iconSz}
-                color={isLocked ? plotIconLockedColor : GARDEN_PLOT_ICON.empty.color}
+                color={GARDEN_PLOT_ICON.empty.color}
               />
-            ) : plot.state === 'planted' ? (
+            ) : !isLocked && plot.state === 'planted' ? (
               <MaterialCommunityIcons
                 name={GARDEN_PLOT_ICON.planted.name}
                 size={iconSz}
-                color={isLocked ? plotIconLockedColor : GARDEN_PLOT_ICON.planted.color}
+                color={GARDEN_PLOT_ICON.planted.color}
               />
-            ) : plot.state === 'growing' ? (
+            ) : !isLocked && plot.state === 'growing' ? (
               <MaterialCommunityIcons
                 name={GARDEN_PLOT_ICON.growing.name}
                 size={iconSz}
-                color={isLocked ? plotIconLockedColor : GARDEN_PLOT_ICON.growing.color}
+                color={GARDEN_PLOT_ICON.growing.color}
               />
-            ) : ripeArt ? (
+            ) : !isLocked && ripeArt ? (
               <Image
                 source={ripeArt}
                 style={[
                   styles.gardenPlotCropImage,
                   { width: cropArtSize, height: cropArtSize },
-                  isLocked && styles.gardenPlotCropImageLocked,
                 ]}
                 resizeMode="contain"
               />
@@ -2009,8 +2102,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
               </View>
             )}
             {isLocked && (
-              <View style={styles.gardenLockedHint} pointerEvents="none">
-                <MaterialCommunityIcons name="lock-outline" size={16} color={FARM.white} />
+              <View style={styles.gardenLockedCenter} pointerEvents="none">
+                <MaterialCommunityIcons name="lock" size={lockIconSize} color={FARM.playButtonShadow} />
               </View>
             )}
         </LinearGradient>
@@ -2043,7 +2136,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   }), [plotSize, plotGap]);
 
   const gardenFieldBlock = (
-    <View style={[styles.gardenFieldPatch, styles.gardenFieldPressable]}>
+    <View style={[styles.gardenFieldPatch, styles.gardenFieldPressablePortrait]}>
+      <Text style={[styles.gardenInstructionText, { fontFamily: F8, marginBottom: 8, paddingHorizontal: 4 }]} numberOfLines={2}>
+        Ruộng giữa 3×3: cuốc, tưới, thu hoạch. Ba quả chín cùng loại trên một hàng hoặc một cột mở thêm một ô mới.
+      </Text>
       <View style={styles.gardenPlotGridColumn}>
         <View
           ref={r => { gardenGridHitRef.current = r; }}
@@ -2053,16 +2149,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         >
           {gardenGridRows.map((rowPlots, rowIdx) => (
             <View key={`garden-row-${rowIdx}`} style={[styles.gardenGridRow, { gap: plotGap, marginBottom: rowIdx < GARDEN_GRID_ROWS - 1 ? plotGap : 0 }]}>
-              {rowIdx < GARDEN_ACTIVE_ROWS ? (
-                <>
-                  <View style={[styles.gardenActiveCluster, { gap: plotGap }]}>
-                    {rowPlots.slice(0, GARDEN_ACTIVE_COLS).map(p => renderGardenCell(p, false))}
-                  </View>
-                  {rowPlots.slice(GARDEN_ACTIVE_COLS).map(p => renderGardenCell(p, true))}
-                </>
-              ) : (
-                rowPlots.map(p => renderGardenCell(p, true))
-              )}
+              {rowPlots.map(p => renderGardenCell(p))}
             </View>
           ))}
         </View>
@@ -2071,47 +2158,45 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   );
 
   const gardenDockBlock = (
-    <View
-      style={[styles.gardenDockColumn, { width: gardenDockWidth }]}
-      {...gardenDockDragPanRef.current.panHandlers}
-    >
-      {/* Close button */}
-      <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
-        <View style={styles.farmCloseButton}>
-          <Ionicons name="close" size={22} color="#FFFFFF" />
-        </View>
-      </AnimatedPressable>
+    <View style={styles.gardenDockRow} {...gardenDockDragPanRef.current.panHandlers}>
+      <View style={styles.gardenDockCloseWrap}>
+        <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
+          <View style={styles.farmCloseButton}>
+            <Ionicons name="close" size={22} color="#FFFFFF" />
+          </View>
+        </AnimatedPressable>
+      </View>
 
-      {/* 3 tool buttons */}
-      {GARDEN_TOOLS.map(tool => {
-        const isSelected = tool.id === selectedToolId;
-        return (
-          <AnimatedPressable
-            key={tool.id}
-            onPress={() => {
-              setSelectedToolId(tool.id);
-              selectedToolIdRef.current = tool.id;
-              playSound('tap');
-            }}
-          >
-            <LinearGradient
-              colors={isSelected ? FARM.playButtonGradient : [FARM.cardFront, FARM.cardFrontBorder]}
-              style={[styles.gardenToolBtn, isSelected && styles.gardenToolBtnSelected]}
+      <View style={styles.gardenDockToolsRow}>
+        {GARDEN_TOOLS.map(tool => {
+          const isSelected = tool.id === selectedToolId;
+          return (
+            <AnimatedPressable
+              key={tool.id}
+              onPress={() => {
+                setSelectedToolId(tool.id);
+                selectedToolIdRef.current = tool.id;
+                playSound('tap');
+              }}
             >
-              <MaterialCommunityIcons
-                name={tool.icon}
-                size={36}
-                color={isSelected ? FARM.playButtonText : FARM.subtitleColor}
-              />
-            </LinearGradient>
-            <Text style={[styles.gardenToolBtnLabel, { fontFamily: F8 }]} numberOfLines={1}>
-              {tool.label}
-            </Text>
-          </AnimatedPressable>
-        );
-      })}
+              <LinearGradient
+                colors={isSelected ? FARM.playButtonGradient : [FARM.cardFront, FARM.cardFrontBorder]}
+                style={[styles.gardenToolBtn, isSelected && styles.gardenToolBtnSelected]}
+              >
+                <MaterialCommunityIcons
+                  name={tool.icon}
+                  size={34}
+                  color={isSelected ? FARM.playButtonText : FARM.subtitleColor}
+                />
+              </LinearGradient>
+              <Text style={[styles.gardenToolBtnLabel, { fontFamily: F8 }]} numberOfLines={1}>
+                {tool.label}
+              </Text>
+            </AnimatedPressable>
+          );
+        })}
+      </View>
 
-      {/* Basket count + music toggle */}
       <View style={styles.gardenDockBottomRow}>
         <Animated.View
           ref={basketRef}
@@ -2143,7 +2228,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   );
 
   const gardenFlyAndDrag = (
-    <>
+    <View style={styles.gardenOverlayLayer} pointerEvents="box-none">
       {flyOverlay && (
         <Animated.View
           pointerEvents="none"
@@ -2183,13 +2268,13 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           ))}
         </Animated.View>
       )}
-    </>
+    </View>
   );
 
   const gardenGradientInner = (
-    <View style={styles.gardenRootLandscape}>
+    <View style={styles.gardenRootPortrait}>
       <StatusBar barStyle="dark-content" />
-      <View style={styles.gardenLandscapeRow}>
+      <View style={styles.gardenPortraitColumn}>
         {gardenFieldBlock}
         {gardenDockBlock}
       </View>
@@ -3456,6 +3541,19 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
+  gardenRootPortrait: {
+    flex: 1,
+    position: 'relative',
+  },
+  gardenPortraitColumn: {
+    flex: 1,
+    flexDirection: 'column',
+    minHeight: 0,
+  },
+  gardenOverlayLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+  },
   gardenHeaderLandscape: {
     paddingHorizontal: 4,
   },
@@ -3476,6 +3574,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingBottom: 4,
     minHeight: 0,
+  },
+  gardenDockRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 10,
+    gap: 8,
+    borderTopWidth: 3,
+    borderTopColor: FARM.grassDark,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  gardenDockCloseWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 2,
+  },
+  gardenDockToolsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
   },
   gardenDockColumn: {
     justifyContent: 'space-evenly',
@@ -3582,6 +3705,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     minWidth: 0,
   },
+  gardenFieldPressablePortrait: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+    marginHorizontal: 0,
+  },
   gardenInstructionText: {
     color: FARM.subtitleColor,
     fontSize: 13,
@@ -3610,14 +3739,15 @@ const styles = StyleSheet.create({
   },
   gardenFieldPatch: {
     flex: 1,
-    marginTop: 2,
-    marginBottom: 2,
-    borderRadius: 22,
+    marginTop: 6,
+    marginHorizontal: 8,
+    marginBottom: 4,
+    borderRadius: 16,
     borderWidth: 3,
     borderColor: FARM.grassDark,
     backgroundColor: FARM.grassMid,
-    paddingHorizontal: 6,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
     ...SHADOWS.card,
   },
   gardenPlotGridColumn: {
@@ -3640,7 +3770,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   gardenPlotWrap: {
-    borderRadius: 18,
+    borderRadius: 14,
     ...SHADOWS.card,
   },
   gardenPlotWrapLocked: {
@@ -3648,7 +3778,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   gardenPlot: {
-    borderRadius: 18,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -3666,19 +3796,22 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     opacity: 0.85,
   },
-  gardenPlotLocked: {
-    opacity: 0.72,
+  gardenPlotLockedOverlay: {
+    opacity: 1,
   },
-  gardenLockedHint: {
+  gardenLockedPreviewImage: {
+    opacity: 0.38,
     position: 'absolute',
-    bottom: 5,
-    right: 5,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(55,65,81,0.55)',
+  },
+  gardenLockedCenter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.22)',
   },
   gardenPlotCropImage: {
     marginTop: 2,
