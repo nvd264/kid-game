@@ -1751,19 +1751,17 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     playSound('tap');
   }, [playSound]);
 
-  // ── Tap on field: apply selected tool to plot under finger (active tiles only) ──
-  const applyToolAt = useCallback((pageX, pageY) => {
+  /** Tap on a specific plot — avoids measureInWindow / hit-test drift from a field-level PanResponder. */
+  const applyToolToPlotId = useCallback((plotId) => {
+    if (!gardenPlotIsActive(plotId)) return;
     const toolId = selectedToolIdRef.current;
     const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
-    const plotId = handlersRef.current.pickPlotUnderFinger(pageX, pageY, validState);
-    if (plotId == null) return;
+    const plot = plotsRef.current.find(p => p.id === plotId);
+    if (!plot || plot.state !== validState) return;
     handlersRef.current.triggerPlotToolFeedback(plotId);
     if (toolId === 'hoe') handlersRef.current.handlePlant(plotId);
     else if (toolId === 'water') handlersRef.current.handleWater(plotId);
-    else {
-      const plot = plotsRef.current.find(p => p.id === plotId);
-      if (plot) handlersRef.current.handleHarvest(plot);
-    }
+    else handlersRef.current.handleHarvest(plot);
   }, []);
 
   // ── Drag on field: same as applyToolAt but skips already-processed plots ──
@@ -1796,19 +1794,21 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     playSound,
     pickPlotUnderFinger,
     triggerPlotToolFeedback,
-    applyToolAt,
+    applyToolToPlotId,
     applyDragAt,
     resetFieldDrag,
   };
 
   const gardenFieldTapRef = useRef(null);
   if (!gardenFieldTapRef.current) {
+    const moveSlop = (_, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6;
     gardenFieldTapRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        const { pageX, pageY } = evt.nativeEvent;
-        handlersRef.current.applyToolAt?.(pageX, pageY);
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: moveSlop,
+      onMoveShouldSetPanResponderCapture: moveSlop,
+      onPanResponderGrant: () => {
+        handlersRef.current.resetFieldDrag?.();
       },
       onPanResponderMove: (evt) => {
         const { pageX, pageY } = evt.nativeEvent;
@@ -1856,35 +1856,27 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const isHovered = !isLocked && hoveredPlotId === plot.id;
     const gradient = isLocked ? getPlotGradientLocked(plot) : getPlotGradient(plot);
     const iconSz = Math.round(plotVectorIconSize * (isLocked ? 0.82 : 1));
-    return (
-      <Animated.View
-        key={plot.id}
-        style={[
-          styles.gardenPlotWrap,
-          isLocked && styles.gardenPlotWrapLocked,
-          { transform: scaleTransform, width: plotSize, height: plotSize },
-        ]}
+    const plotMeasureShell = (
+      <View
+        ref={ref => { plotRefs.current[plot.id] = ref; }}
+        onLayout={() => {
+          if (plotRefs.current[plot.id]) {
+            plotRefs.current[plot.id].measureInWindow((x, y, w, h) => {
+              plotLayoutsRef.current[plot.id] = { x, y, width: w, height: h };
+            });
+          }
+        }}
       >
-        <View
-          ref={ref => { plotRefs.current[plot.id] = ref; }}
-          onLayout={() => {
-            if (plotRefs.current[plot.id]) {
-              plotRefs.current[plot.id].measureInWindow((x, y, w, h) => {
-                plotLayoutsRef.current[plot.id] = { x, y, width: w, height: h };
-              });
-            }
-          }}
+        <LinearGradient
+          colors={gradient}
+          style={[
+            styles.gardenPlot,
+            { width: plotSize, height: plotSize },
+            plot.state === 'empty' && (isLocked ? styles.gardenPlotEmptyLocked : styles.gardenPlotEmpty),
+            isHovered && styles.gardenPlotHovered,
+            isLocked && styles.gardenPlotLocked,
+          ]}
         >
-          <LinearGradient
-            colors={gradient}
-            style={[
-              styles.gardenPlot,
-              { width: plotSize, height: plotSize },
-              plot.state === 'empty' && (isLocked ? styles.gardenPlotEmptyLocked : styles.gardenPlotEmpty),
-              isHovered && styles.gardenPlotHovered,
-              isLocked && styles.gardenPlotLocked,
-            ]}
-          >
             {plot.state === 'empty' ? (
               <MaterialCommunityIcons
                 name={GARDEN_PLOT_ICON.empty.name}
@@ -1934,8 +1926,31 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
                 <MaterialCommunityIcons name="lock-outline" size={16} color={FARM.white} />
               </View>
             )}
-          </LinearGradient>
-        </View>
+        </LinearGradient>
+      </View>
+    );
+
+    return (
+      <Animated.View
+        key={plot.id}
+        style={[
+          styles.gardenPlotWrap,
+          isLocked && styles.gardenPlotWrapLocked,
+          { transform: scaleTransform, width: plotSize, height: plotSize },
+        ]}
+      >
+        {isLocked ? (
+          plotMeasureShell
+        ) : (
+          <TouchableOpacity
+            activeOpacity={0.92}
+            delayPressIn={0}
+            onPress={() => handlersRef.current.applyToolToPlotId?.(plot.id)}
+            style={styles.gardenPlotTouchable}
+          >
+            {plotMeasureShell}
+          </TouchableOpacity>
+        )}
       </Animated.View>
     );
   };
@@ -3533,6 +3548,10 @@ const styles = StyleSheet.create({
   gardenPlotWrap: {
     borderRadius: 18,
     ...SHADOWS.card,
+  },
+  gardenPlotTouchable: {
+    flex: 1,
+    borderRadius: 18,
   },
   gardenPlotWrapLocked: {
     shadowOpacity: 0.12,
