@@ -3,7 +3,7 @@
     "name": "ben-hoc-vui",
     "slug": "ben-hoc-vui",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -26,7 +26,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-screen-orientation"
     ],
     "extra": {
       "eas": {
