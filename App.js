@@ -1423,8 +1423,6 @@ const gardenPlotIsActive = (plotId) => {
 
 const GROW_PHASE_DURATION = 1200;
 const RIPE_PHASE_DURATION = 1200;
-/** Extra hit padding around each plot while dragging tools (forgiving for small fingers). */
-const GARDEN_PLOT_HIT_PAD = 16;
 
 const GARDEN_TOOLS = [
   { id: 'hoe',     label: 'Cuốc đất',  validState: 'empty',    icon: 'shovel', color: FARM.subtitleColor },
@@ -1465,8 +1463,14 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
 
   // ── Anim refs ──
   const plotAnimsRef = useRef({});
-  const plotRefs = useRef({});
   const plotLayoutsRef = useRef({});
+  /** Window origin of the grid hit view; all plotLayoutsRef entries derived from this (no per-cell measureInWindow). */
+  const gardenGridHitRef = useRef(null);
+  const gardenGridLayoutRef = useRef(null);
+  /** True while finger drag-paints on the field — skip heavy feedback/sounds for performance. */
+  const gardenFieldDragActiveRef = useRef(false);
+  const fieldDragRafRef = useRef(null);
+  const fieldDragPendingRef = useRef(null);
   const basketRef = useRef(null);
   const basketLayoutRef = useRef(null);
   const flyAnimX  = useRef(new Animated.Value(0)).current;
@@ -1501,6 +1505,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   }, []);
 
   const triggerPlotToolFeedback = useCallback((plotId) => {
+    if (gardenFieldDragActiveRef.current) return;
     const anim = plotAnimsRef.current[plotId];
     if (!anim?.toolFlash) return;
     anim.toolFlash.stopAnimation();
@@ -1558,42 +1563,14 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const crop = GARDEN_CROPS[Math.floor(Math.random() * GARDEN_CROPS.length)];
     setPlots(prev => prev.map(p => p.id === plotId ? { ...p, state: 'planted', crop } : p));
     const anim = plotAnimsRef.current[plotId];
-    if (anim) {
+    if (anim && !gardenFieldDragActiveRef.current) {
       Animated.sequence([
         Animated.spring(anim.grow, { toValue: 1.18, useNativeDriver: true, bounciness: 12, speed: 14 }),
         Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 12, speed: 14 }),
       ]).start();
     }
-    playSound('tap');
+    if (!gardenFieldDragActiveRef.current) playSound('tap');
   }, [playSound]);
-
-  /** Page-space hit test (FAB drag from outside the grid). */
-  const pickPlotUnderFinger = useCallback((pageX, pageY, validState) => {
-    const pad = GARDEN_PLOT_HIT_PAD;
-    const layouts = plotLayoutsRef.current;
-    let bestId = null;
-    let bestDist = Infinity;
-    for (const plot of plotsRef.current) {
-      if (!gardenPlotIsActive(plot.id)) continue;
-      if (plot.state !== validState) continue;
-      const layout = layouts[plot.id];
-      if (!layout?.width) continue;
-      const { x, y, width, height } = layout;
-      const cx = x + width / 2;
-      const cy = y + height / 2;
-      if (
-        pageX >= x - pad && pageX <= x + width + pad &&
-        pageY >= y - pad && pageY <= y + height + pad
-      ) {
-        const d = (pageX - cx) * (pageX - cx) + (pageY - cy) * (pageY - cy);
-        if (d < bestDist) {
-          bestDist = d;
-          bestId = plot.id;
-        }
-      }
-    }
-    return bestId;
-  }, []);
 
   /** Coordinates relative to the grid hit-area view (same box as row layout). */
   const pickPlotFromLocalXY = useCallback((localX, localY, validState) => {
@@ -1613,6 +1590,34 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     return plotId;
   }, [plotSize, plotGap]);
 
+  /** Page-space hit test (FAB drag); uses single grid origin — avoids per-plot measureInWindow. */
+  const pickPlotUnderFinger = useCallback((pageX, pageY, validState) => {
+    const g = gardenGridLayoutRef.current;
+    if (g == null || g.width == null) return null;
+    const lx = pageX - g.x;
+    const ly = pageY - g.y;
+    return pickPlotFromLocalXY(lx, ly, validState);
+  }, [pickPlotFromLocalXY]);
+
+  const syncGardenPlotLayoutsFromGrid = useCallback(() => {
+    const node = gardenGridHitRef.current;
+    if (!node?.measureInWindow) return;
+    node.measureInWindow((x, y, w, h) => {
+      gardenGridLayoutRef.current = { x, y, width: w, height: h };
+      const stride = plotSize + plotGap;
+      for (let id = 0; id < GARDEN_GRID_TOTAL; id++) {
+        const col = id % GARDEN_GRID_COLS;
+        const row = Math.floor(id / GARDEN_GRID_COLS);
+        plotLayoutsRef.current[id] = {
+          x: x + col * stride,
+          y: y + row * stride,
+          width: plotSize,
+          height: plotSize,
+        };
+      }
+    });
+  }, [plotSize, plotGap]);
+
   const handleWater = useCallback((plotId) => {
     if (!gardenPlotIsActive(plotId)) return;
     setPlots(prev => {
@@ -1620,16 +1625,18 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
       if (!plot || plot.state !== 'planted') return prev;
       return prev.map(p => p.id === plotId ? { ...p, state: 'growing' } : p);
     });
-    playSound('pick');
+    if (!gardenFieldDragActiveRef.current) playSound('pick');
 
     const anim = plotAnimsRef.current[plotId];
     if (!anim) return;
 
     const t1 = setTimeout(() => {
-      Animated.sequence([
-        Animated.spring(anim.grow, { toValue: 1.15, useNativeDriver: true, bounciness: 10, speed: 14 }),
-        Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 10, speed: 14 }),
-      ]).start();
+      if (!gardenFieldDragActiveRef.current) {
+        Animated.sequence([
+          Animated.spring(anim.grow, { toValue: 1.15, useNativeDriver: true, bounciness: 10, speed: 14 }),
+          Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 10, speed: 14 }),
+        ]).start();
+      }
     }, GROW_PHASE_DURATION);
 
     const t2 = setTimeout(() => {
@@ -1638,11 +1645,13 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         if (!plot || plot.state !== 'growing') return prev;
         return prev.map(p => p.id === plotId ? { ...p, state: 'ripe' } : p);
       });
-      playSound('match');
-      Animated.sequence([
-        Animated.spring(anim.grow, { toValue: 1.2, useNativeDriver: true, bounciness: 12, speed: 10 }),
-        Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 12, speed: 10 }),
-      ]).start();
+      if (!gardenFieldDragActiveRef.current) playSound('match');
+      if (!gardenFieldDragActiveRef.current) {
+        Animated.sequence([
+          Animated.spring(anim.grow, { toValue: 1.2, useNativeDriver: true, bounciness: 12, speed: 10 }),
+          Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 12, speed: 10 }),
+        ]).start();
+      }
     }, GROW_PHASE_DURATION + RIPE_PHASE_DURATION);
 
     anim.timers.push(t1, t2);
@@ -1659,7 +1668,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const plotLayout = plotLayoutsRef.current[plot.id];
     const basketLayout = basketLayoutRef.current;
 
-    if (plotLayout && basketLayout && plot.crop) {
+    if (!gardenFieldDragActiveRef.current && plotLayout && basketLayout && plot.crop) {
       const startX = plotLayout.x + plotLayout.width / 2 - 24;
       const startY = plotLayout.y + plotLayout.height / 2 - 24;
       flyAnimX.setValue(0);
@@ -1681,11 +1690,13 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
 
     setTotalHarvested(prev => prev + 1);
 
-    playSound('match');
-    Animated.sequence([
-      Animated.spring(basketBounce, { toValue: 1.3, useNativeDriver: true, bounciness: 14, speed: 10 }),
-      Animated.spring(basketBounce, { toValue: 1, useNativeDriver: true, bounciness: 14, speed: 10 }),
-    ]).start();
+    if (!gardenFieldDragActiveRef.current) playSound('match');
+    if (!gardenFieldDragActiveRef.current) {
+      Animated.sequence([
+        Animated.spring(basketBounce, { toValue: 1.3, useNativeDriver: true, bounciness: 14, speed: 10 }),
+        Animated.spring(basketBounce, { toValue: 1, useNativeDriver: true, bounciness: 14, speed: 10 }),
+      ]).start();
+    }
   }, [basketBounce, flyAnimOp, flyAnimX, flyAnimY, playSound]);
 
   // ── Single main FAB: tap toggles radial menu; drag applies selected tool ──
@@ -1709,6 +1720,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         if (dist > 10 && !dragFromFabRef.current) {
           dragFromFabRef.current = true;
           lastToolPlotRef.current[toolId] = null;
+          handlersRef.current.syncGardenPlotLayoutsFromGrid?.();
           setDragTool(toolId);
           Animated.spring(dragFloatScale, {
             toValue: 1.15, useNativeDriver: true, bounciness: 14, speed: 18,
@@ -1808,6 +1820,23 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     }
   }, []);
 
+  const flushFieldDragPendingMove = useCallback(() => {
+    const p = fieldDragPendingRef.current;
+    if (p) {
+      fieldDragPendingRef.current = null;
+      handlersRef.current.applyDragAtLocal?.(p.x, p.y);
+    }
+  }, []);
+
+  const scheduleFieldDragMove = useCallback((localX, localY) => {
+    fieldDragPendingRef.current = { x: localX, y: localY };
+    if (fieldDragRafRef.current != null) return;
+    fieldDragRafRef.current = requestAnimationFrame(() => {
+      fieldDragRafRef.current = null;
+      flushFieldDragPendingMove();
+    });
+  }, [flushFieldDragPendingMove]);
+
   const resetFieldDrag = useCallback(() => {
     lastToolPlotRef.current[selectedToolIdRef.current] = null;
   }, []);
@@ -1825,7 +1854,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     applyToolToPlotId,
     applyToolAtLocal,
     applyDragAtLocal,
+    scheduleFieldDragMove,
+    flushFieldDragPendingMove,
     resetFieldDrag,
+    syncGardenPlotLayoutsFromGrid,
   };
 
   const gardenFieldTapRef = useRef(null);
@@ -1837,16 +1869,24 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
       onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt) => {
+        gardenFieldDragActiveRef.current = true;
         const { locationX, locationY } = evt.nativeEvent;
         fieldDragStartRef.x = locationX;
         fieldDragStartRef.y = locationY;
         handlersRef.current.resetFieldDrag?.();
+        handlersRef.current.syncGardenPlotLayoutsFromGrid?.();
       },
       onPanResponderMove: (evt) => {
         const { locationX, locationY } = evt.nativeEvent;
-        handlersRef.current.applyDragAtLocal?.(locationX, locationY);
+        handlersRef.current.scheduleFieldDragMove?.(locationX, locationY);
       },
       onPanResponderRelease: (evt) => {
+        if (fieldDragRafRef.current != null) {
+          cancelAnimationFrame(fieldDragRafRef.current);
+          fieldDragRafRef.current = null;
+        }
+        handlersRef.current.flushFieldDragPendingMove?.();
+        gardenFieldDragActiveRef.current = false;
         const { locationX, locationY } = evt.nativeEvent;
         const dx = locationX - fieldDragStartRef.x;
         const dy = locationY - fieldDragStartRef.y;
@@ -1860,6 +1900,12 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         handlersRef.current.resetFieldDrag?.();
       },
       onPanResponderTerminate: () => {
+        if (fieldDragRafRef.current != null) {
+          cancelAnimationFrame(fieldDragRafRef.current);
+          fieldDragRafRef.current = null;
+        }
+        handlersRef.current.flushFieldDragPendingMove?.();
+        gardenFieldDragActiveRef.current = false;
         handlersRef.current.resetFieldDrag?.();
       },
     });
@@ -1899,16 +1945,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const gradient = isLocked ? getPlotGradientLocked(plot) : getPlotGradient(plot);
     const iconSz = Math.round(plotVectorIconSize * (isLocked ? 0.82 : 1));
     const plotMeasureShell = (
-      <View
-        ref={ref => { plotRefs.current[plot.id] = ref; }}
-        onLayout={() => {
-          if (plotRefs.current[plot.id]) {
-            plotRefs.current[plot.id].measureInWindow((x, y, w, h) => {
-              plotLayoutsRef.current[plot.id] = { x, y, width: w, height: h };
-            });
-          }
-        }}
-      >
+      <View>
         <LinearGradient
           colors={gradient}
           style={[
@@ -2001,6 +2038,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     <View style={[styles.gardenFieldPatch, styles.gardenFieldPressable]}>
       <View style={styles.gardenPlotGridColumn}>
         <View
+          ref={r => { gardenGridHitRef.current = r; }}
+          onLayout={() => handlersRef.current.syncGardenPlotLayoutsFromGrid?.()}
           style={[styles.gardenGridHitArea, gardenGridHitSize]}
           {...gardenFieldTapRef.current.panHandlers}
         >
