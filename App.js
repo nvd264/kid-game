@@ -1488,6 +1488,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const selectedToolIdRef = useRef('hoe');
   const handlersRef = useRef({});
   const dragFromFabRef = useRef(false);
+  /** True while dragging tool from dock handle (not field paint) — full feedback + floating icon. */
+  const gardenDragFromDockRef = useRef(false);
 
   const initPlotAnim = useCallback((id) => {
     if (plotAnimsRef.current[id]) {
@@ -1505,7 +1507,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   }, []);
 
   const triggerPlotToolFeedback = useCallback((plotId) => {
-    if (gardenFieldDragActiveRef.current) return;
+    if (gardenFieldDragActiveRef.current && !gardenDragFromDockRef.current) return;
     const anim = plotAnimsRef.current[plotId];
     if (!anim?.toolFlash) return;
     anim.toolFlash.stopAnimation();
@@ -1563,13 +1565,14 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const crop = GARDEN_CROPS[Math.floor(Math.random() * GARDEN_CROPS.length)];
     setPlots(prev => prev.map(p => p.id === plotId ? { ...p, state: 'planted', crop } : p));
     const anim = plotAnimsRef.current[plotId];
-    if (anim && !gardenFieldDragActiveRef.current) {
+    const paintOnlyDrag = gardenFieldDragActiveRef.current && !gardenDragFromDockRef.current;
+    if (anim && !paintOnlyDrag) {
       Animated.sequence([
         Animated.spring(anim.grow, { toValue: 1.18, useNativeDriver: true, bounciness: 12, speed: 14 }),
         Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 12, speed: 14 }),
       ]).start();
     }
-    if (!gardenFieldDragActiveRef.current) playSound('tap');
+    if (!paintOnlyDrag) playSound('tap');
   }, [playSound]);
 
   /** Coordinates relative to the grid hit-area view (same box as row layout). */
@@ -1600,21 +1603,23 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   }, [pickPlotFromLocalXY]);
 
   const syncGardenPlotLayoutsFromGrid = useCallback(() => {
-    const node = gardenGridHitRef.current;
-    if (!node?.measureInWindow) return;
-    node.measureInWindow((x, y, w, h) => {
-      gardenGridLayoutRef.current = { x, y, width: w, height: h };
-      const stride = plotSize + plotGap;
-      for (let id = 0; id < GARDEN_GRID_TOTAL; id++) {
-        const col = id % GARDEN_GRID_COLS;
-        const row = Math.floor(id / GARDEN_GRID_COLS);
-        plotLayoutsRef.current[id] = {
-          x: x + col * stride,
-          y: y + row * stride,
-          width: plotSize,
-          height: plotSize,
-        };
-      }
+    requestAnimationFrame(() => {
+      const node = gardenGridHitRef.current;
+      if (!node?.measureInWindow) return;
+      node.measureInWindow((x, y, w, h) => {
+        gardenGridLayoutRef.current = { x, y, width: w, height: h };
+        const stride = plotSize + plotGap;
+        for (let id = 0; id < GARDEN_GRID_TOTAL; id++) {
+          const col = id % GARDEN_GRID_COLS;
+          const row = Math.floor(id / GARDEN_GRID_COLS);
+          plotLayoutsRef.current[id] = {
+            x: x + col * stride,
+            y: y + row * stride,
+            width: plotSize,
+            height: plotSize,
+          };
+        }
+      });
     });
   }, [plotSize, plotGap]);
 
@@ -1625,13 +1630,15 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
       if (!plot || plot.state !== 'planted') return prev;
       return prev.map(p => p.id === plotId ? { ...p, state: 'growing' } : p);
     });
-    if (!gardenFieldDragActiveRef.current) playSound('pick');
+    const paintOnlyDrag = gardenFieldDragActiveRef.current && !gardenDragFromDockRef.current;
+    if (!paintOnlyDrag) playSound('pick');
 
     const anim = plotAnimsRef.current[plotId];
     if (!anim) return;
 
     const t1 = setTimeout(() => {
-      if (!gardenFieldDragActiveRef.current) {
+      const p = gardenFieldDragActiveRef.current && !gardenDragFromDockRef.current;
+      if (!p) {
         Animated.sequence([
           Animated.spring(anim.grow, { toValue: 1.15, useNativeDriver: true, bounciness: 10, speed: 14 }),
           Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 10, speed: 14 }),
@@ -1645,8 +1652,9 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         if (!plot || plot.state !== 'growing') return prev;
         return prev.map(p => p.id === plotId ? { ...p, state: 'ripe' } : p);
       });
-      if (!gardenFieldDragActiveRef.current) playSound('match');
-      if (!gardenFieldDragActiveRef.current) {
+      const p2 = gardenFieldDragActiveRef.current && !gardenDragFromDockRef.current;
+      if (!p2) playSound('match');
+      if (!p2) {
         Animated.sequence([
           Animated.spring(anim.grow, { toValue: 1.2, useNativeDriver: true, bounciness: 12, speed: 10 }),
           Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 12, speed: 10 }),
@@ -1668,7 +1676,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const plotLayout = plotLayoutsRef.current[plot.id];
     const basketLayout = basketLayoutRef.current;
 
-    if (!gardenFieldDragActiveRef.current && plotLayout && basketLayout && plot.crop) {
+    const paintOnlyDrag = gardenFieldDragActiveRef.current && !gardenDragFromDockRef.current;
+    if (!paintOnlyDrag && plotLayout && basketLayout && plot.crop) {
       const startX = plotLayout.x + plotLayout.width / 2 - 24;
       const startY = plotLayout.y + plotLayout.height / 2 - 24;
       flyAnimX.setValue(0);
@@ -1690,8 +1699,8 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
 
     setTotalHarvested(prev => prev + 1);
 
-    if (!gardenFieldDragActiveRef.current) playSound('match');
-    if (!gardenFieldDragActiveRef.current) {
+    if (!paintOnlyDrag) playSound('match');
+    if (!paintOnlyDrag) {
       Animated.sequence([
         Animated.spring(basketBounce, { toValue: 1.3, useNativeDriver: true, bounciness: 14, speed: 10 }),
         Animated.spring(basketBounce, { toValue: 1, useNativeDriver: true, bounciness: 14, speed: 10 }),
@@ -1699,15 +1708,22 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     }
   }, [basketBounce, flyAnimOp, flyAnimX, flyAnimY, playSound]);
 
-  // ── Single main FAB: tap toggles radial menu; drag applies selected tool ──
-  const cycleToolRef = useRef(() => {});
-  const gardenMainFabPanRef = useRef(null);
-  if (!gardenMainFabPanRef.current) {
-    gardenMainFabPanRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6,
+  // ── Drag from dock onto field: floating tool + apply (tool chosen via 3 buttons) ──
+  const gardenDockDragPanRef = useRef(null);
+  if (!gardenDockDragPanRef.current) {
+    const dragStartSlop = 10;
+    const moveSlopDock = (_, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6;
+    gardenDockDragPanRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_, g) => {
+        const d = Math.sqrt(g.dx * g.dx + g.dy * g.dy);
+        return d > dragStartSlop;
+      },
+      onMoveShouldSetPanResponderCapture: moveSlopDock,
       onPanResponderGrant: (evt) => {
         dragFromFabRef.current = false;
+        gardenDragFromDockRef.current = true;
         const { pageX, pageY } = evt.nativeEvent;
         dragFloatX.setValue(pageX - 40);
         dragFloatY.setValue(pageY - 40);
@@ -1717,7 +1733,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         const dist = Math.sqrt(g.dx * g.dx + g.dy * g.dy);
         const toolId = selectedToolIdRef.current;
         const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
-        if (dist > 10 && !dragFromFabRef.current) {
+        if (dist > dragStartSlop && !dragFromFabRef.current) {
           dragFromFabRef.current = true;
           lastToolPlotRef.current[toolId] = null;
           handlersRef.current.syncGardenPlotLayoutsFromGrid?.();
@@ -1751,9 +1767,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         }
       },
       onPanResponderRelease: () => {
-        if (!dragFromFabRef.current) {
-          cycleToolRef.current();
-        } else {
+        if (dragFromFabRef.current) {
           Animated.spring(dragFloatScale, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 4 }).start(() => {
             setDragTool(null);
           });
@@ -1763,6 +1777,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           lastToolPlotRef.current[toolId] = null;
         }
         dragFromFabRef.current = false;
+        gardenDragFromDockRef.current = false;
       },
       onPanResponderTerminate: () => {
         dragFloatScale.setValue(0);
@@ -1770,18 +1785,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         hoveredPlotIdRef.current = null;
         setHoveredPlotId(null);
         dragFromFabRef.current = false;
+        gardenDragFromDockRef.current = false;
       },
     });
   }
-
-  const cycleTool = useCallback(() => {
-    const currentIdx = GARDEN_TOOLS.findIndex(t => t.id === selectedToolIdRef.current);
-    const nextIdx = (currentIdx + 1) % GARDEN_TOOLS.length;
-    const nextId = GARDEN_TOOLS[nextIdx].id;
-    setSelectedToolId(nextId);
-    selectedToolIdRef.current = nextId;
-    playSound('tap');
-  }, [playSound]);
 
   const applyToolToPlotId = useCallback((plotId) => {
     if (!gardenPlotIsActive(plotId)) return;
@@ -1841,8 +1848,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     lastToolPlotRef.current[selectedToolIdRef.current] = null;
   }, []);
 
-  cycleToolRef.current = cycleTool;
-
   handlersRef.current = {
     handlePlant,
     handleWater,
@@ -1863,13 +1868,16 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const gardenFieldTapRef = useRef(null);
   if (!gardenFieldTapRef.current) {
     const slop = 10;
+    const moveSlop = (_, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6;
     const fieldDragStartRef = { x: 0, y: 0 };
     gardenFieldTapRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: moveSlop,
+      onMoveShouldSetPanResponderCapture: moveSlop,
       onPanResponderGrant: (evt) => {
         gardenFieldDragActiveRef.current = true;
+        gardenDragFromDockRef.current = false;
         const { locationX, locationY } = evt.nativeEvent;
         fieldDragStartRef.x = locationX;
         fieldDragStartRef.y = locationY;
@@ -2063,7 +2071,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   );
 
   const gardenDockBlock = (
-    <View style={[styles.gardenDockColumn, { width: gardenDockWidth }]}>
+    <View
+      style={[styles.gardenDockColumn, { width: gardenDockWidth }]}
+      {...gardenDockDragPanRef.current.panHandlers}
+    >
       {/* Close button */}
       <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
         <View style={styles.farmCloseButton}>
