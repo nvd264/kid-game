@@ -1478,7 +1478,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   useEffect(() => {
     const count = GARDEN_EXPAND_THRESHOLDS[0].plots;
     const initial = Array.from({ length: count }, (_, i) => ({ id: i, state: 'empty', crop: null }));
-    initial.forEach(p => initPlotAnim(p.id, false));
+    initial.forEach(p => initPlotAnim(p.id));
     setPlots(initial);
   }, [initPlotAnim]);
 
@@ -1488,9 +1488,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   // ── Cleanup on unmount ──
   useEffect(() => {
     return () => {
-      Object.values(plotAnimsRef.current).forEach(({ grow, appear, timers }) => {
+      Object.values(plotAnimsRef.current).forEach(({ grow, appear, toolFlash, timers }) => {
         grow.stopAnimation();
         appear.stopAnimation();
+        toolFlash?.stopAnimation();
         timers.forEach(clearTimeout);
       });
     };
@@ -1504,18 +1505,20 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
       if (prev.length >= threshold.plots) return prev;
       const newPlots = [];
       for (let i = prev.length; i < threshold.plots; i++) {
-        initPlotAnim(i, true);
+        initPlotAnim(i);
         newPlots.push({ id: i, state: 'empty', crop: null });
         const anim = plotAnimsRef.current[i];
         if (anim) {
+          const delay = (i - prev.length) * 120;
           setTimeout(() => {
-            Animated.spring(anim.appear, {
+            anim.grow.setValue(0);
+            Animated.spring(anim.grow, {
               toValue: 1,
               useNativeDriver: true,
               bounciness: 14,
               speed: 8,
             }).start();
-          }, (i - prev.length) * 120);
+          }, delay);
         }
       }
       return [...prev, ...newPlots];
