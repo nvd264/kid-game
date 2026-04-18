@@ -3372,9 +3372,9 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   gardenDockColumn: {
-    flex: 1,
     justifyContent: 'space-evenly',
     alignItems: 'center',
+    alignSelf: 'stretch',
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
