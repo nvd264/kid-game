@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { FARM, SHADOWS } from './theme';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StatusBar, Animated, Modal } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StatusBar, Animated, Modal, PanResponder } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as Updates from 'expo-updates';
 import { useFonts, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black } from '@expo-google-fonts/nunito';
@@ -1388,548 +1387,460 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit, 
   return null;
 };
 
-const GardenDraggableItem = React.memo(function GardenDraggableItem({
-  item,
-  disabled,
-  isDone,
-  isWrong,
-  wrongMarkOpacity,
-  onTap,
-  onDropAtScreen,
-  allowTap,
-}) {
-  const tx = useRef(new Animated.Value(0)).current;
-  const ty = useRef(new Animated.Value(0)).current;
-
-  const onGestureEvent = useMemo(
-    () => Animated.event([{ nativeEvent: { translationX: tx, translationY: ty } }], { useNativeDriver: false }),
-    [tx, ty]
-  );
-
-  const resetPosition = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(tx, { toValue: 0, useNativeDriver: false, bounciness: 8, speed: 18 }),
-      Animated.spring(ty, { toValue: 0, useNativeDriver: false, bounciness: 8, speed: 18 }),
-    ]).start();
-  }, [tx, ty]);
-
-  const handleStateChange = useCallback((e) => {
-    const { state, oldState, absoluteX, absoluteY } = e.nativeEvent;
-    if (oldState === State.ACTIVE && (state === State.END || state === State.CANCELLED)) {
-      onDropAtScreen(item.id, absoluteX, absoluteY);
-      resetPosition();
-    }
-  }, [item.id, onDropAtScreen, resetPosition]);
-
-  const handleTap = useCallback(() => {
-    if (!allowTap) return;
-    onTap(item.id);
-    resetPosition();
-  }, [allowTap, item.id, onTap, resetPosition]);
-
-  return (
-    <PanGestureHandler enabled={!disabled} onGestureEvent={onGestureEvent} onHandlerStateChange={handleStateChange}>
-      <Animated.View style={[
-        styles.gardenDragWrap,
-        { transform: [{ translateX: tx }, { translateY: ty }],
-          opacity: disabled ? 0.65 : 1 }
-      ]}>
-        <TouchableOpacity activeOpacity={0.9} onPress={handleTap} disabled={disabled || !allowTap}>
-          <LinearGradient
-            colors={isDone ? [FARM.cardMatched, FARM.hillColor] : [FARM.cardFront, '#FFFEF5']}
-            style={[styles.gardenDragItem, isWrong && { borderColor: FARM.closeButtonBorder }]}
-          >
-            <Text style={styles.gardenDragEmoji}>{item.emoji}</Text>
-            {isDone && (
-              <View style={styles.gardenCheckBadge}>
-                <Text style={styles.gardenCheckBadgeText}>✓</Text>
-              </View>
-            )}
-            {isWrong && (
-              <Animated.View style={[styles.gardenWrongMark, { opacity: wrongMarkOpacity }]}>
-                <Text style={styles.gardenWrongMarkText}>✕</Text>
-              </Animated.View>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-      </Animated.View>
-    </PanGestureHandler>
-  );
-});
-
 // ============================================
-// GAME 3: GARDEN HARVEST
+// GAME 3: GARDEN HARVEST (Plant → Grow → Harvest)
 // ============================================
-const GARDEN_TASK_TYPE = {
-  HARVEST: 'harvest',
-  FEED: 'feed',
-  WATER: 'water',
-};
+const GARDEN_CROPS = [
+  { seed: '🌱', ripe: '🥕', name: 'Cà rốt' },
+  { seed: '🌱', ripe: '🍓', name: 'Dâu' },
+  { seed: '🌱', ripe: '🍅', name: 'Cà chua' },
+  { seed: '🌱', ripe: '🌽', name: 'Ngô' },
+  { seed: '🌱', ripe: '🥦', name: 'Bông cải' },
+  { seed: '🌱', ripe: '🍆', name: 'Cà tím' },
+  { seed: '🌱', ripe: '🥬', name: 'Xà lách' },
+];
+const GARDEN_EXPAND_THRESHOLDS = [
+  { at: 0,  plots: 4 },
+  { at: 8,  plots: 6 },
+  { at: 20, plots: 9 },
+];
+const GROW_PHASE_DURATION = 1200;
+const RIPE_PHASE_DURATION = 1200;
 
-const GARDEN_TASK_META = {
-  [GARDEN_TASK_TYPE.HARVEST]: {
-    id: GARDEN_TASK_TYPE.HARVEST,
-    title: 'Thu hoạch',
-    prompt: 'Chạm để hái đúng nông sản',
-    actionHint: '👉 Đúng món',
-    icon: '🧺',
-    targetEmojiPool: ['🍎', '🍓', '🍇', '🥕'],
-    targetName: 'Nông sản',
-    distractorEmojiPool: ['🍄', '🪨', '🍋', '🌰'],
-    targetLabel: 'Giỏ thu hoạch',
-    successToast: 'Giỏ đầy rồi!',
-    interaction: 'tap',
-  },
-  [GARDEN_TASK_TYPE.FEED]: {
-    id: GARDEN_TASK_TYPE.FEED,
-    title: 'Cho ăn',
-    prompt: 'Kéo đồ ăn vào đúng chỗ',
-    actionHint: 'Kéo thức ăn vào bạn thỏ',
-    icon: '🐰',
-    targetEmojiPool: ['🥕', '🥬', '🍏', '🌽'],
-    targetName: 'Thức ăn',
-    distractorEmojiPool: ['🍋', '🧅', '🪨', '🫑'],
-    targetLabel: 'Bạn thỏ đang đói',
-    successToast: 'Bạn thỏ no rồi!',
-    interaction: 'drag',
-  },
-  [GARDEN_TASK_TYPE.WATER]: {
-    id: GARDEN_TASK_TYPE.WATER,
-    title: 'Tưới nước',
-    prompt: 'Kéo giọt nước vào luống hoa',
-    actionHint: 'Kéo giọt nước vào luống hoa',
-    icon: '🌼',
-    targetEmojiPool: ['💧', '🫧', '🚿'],
-    targetName: 'Nước tưới',
-    distractorEmojiPool: ['🪨', '🍂', '🧱', '🥥'],
-    targetLabel: 'Luống hoa',
-    successToast: 'Hoa nở đẹp quá!',
-    interaction: 'drag',
-  },
-};
-
-const GARDEN_LEVELS = [
-  { id: 1, key: makeLevelKey('easy', 1), tier: 'easy', subLevel: 1, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 4, distractorCount: 1, timeLimit: 40, maxMistakes: 6, tapAssist: true, sequence: false },
-  { id: 2, key: makeLevelKey('easy', 2), tier: 'easy', subLevel: 2, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 4, distractorCount: 1, timeLimit: 38, maxMistakes: 6, tapAssist: true, sequence: false },
-  { id: 3, key: makeLevelKey('easy', 3), tier: 'easy', subLevel: 3, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 5, distractorCount: 1, timeLimit: 38, maxMistakes: 6, tapAssist: true, sequence: false },
-  { id: 4, key: makeLevelKey('medium', 1), tier: 'medium', subLevel: 1, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 5, distractorCount: 2, timeLimit: 34, maxMistakes: 5, tapAssist: false, sequence: false },
-  { id: 5, key: makeLevelKey('medium', 2), tier: 'medium', subLevel: 2, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 5, distractorCount: 2, timeLimit: 33, maxMistakes: 5, tapAssist: false, sequence: false },
-  { id: 6, key: makeLevelKey('medium', 3), tier: 'medium', subLevel: 3, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 6, distractorCount: 2, timeLimit: 32, maxMistakes: 5, tapAssist: false, sequence: false },
-  { id: 7, key: makeLevelKey('hard', 1), tier: 'hard', subLevel: 1, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 6, distractorCount: 3, timeLimit: 30, maxMistakes: 4, tapAssist: false, sequence: true },
-  { id: 8, key: makeLevelKey('hard', 2), tier: 'hard', subLevel: 2, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 6, distractorCount: 3, timeLimit: 28, maxMistakes: 4, tapAssist: false, sequence: true },
-  { id: 9, key: makeLevelKey('hard', 3), tier: 'hard', subLevel: 3, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 6, distractorCount: 3, timeLimit: 28, maxMistakes: 4, tapAssist: false, sequence: true },
-  { id: 10, key: makeLevelKey('expert', 1), tier: 'expert', subLevel: 1, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 7, distractorCount: 3, timeLimit: 26, maxMistakes: 3, tapAssist: false, sequence: true },
-  { id: 11, key: makeLevelKey('expert', 2), tier: 'expert', subLevel: 2, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 7, distractorCount: 4, timeLimit: 24, maxMistakes: 3, tapAssist: false, sequence: true },
-  { id: 12, key: makeLevelKey('expert', 3), tier: 'expert', subLevel: 3, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 7, distractorCount: 4, timeLimit: 24, maxMistakes: 3, tapAssist: false, sequence: true },
-  { id: 13, key: makeLevelKey('master', 1), tier: 'master', subLevel: 1, taskType: GARDEN_TASK_TYPE.HARVEST, targetCount: 8, distractorCount: 4, timeLimit: 22, maxMistakes: 3, tapAssist: false, sequence: true },
-  { id: 14, key: makeLevelKey('master', 2), tier: 'master', subLevel: 2, taskType: GARDEN_TASK_TYPE.WATER, targetCount: 8, distractorCount: 4, timeLimit: 20, maxMistakes: 2, tapAssist: false, sequence: true },
-  { id: 15, key: makeLevelKey('master', 3), tier: 'master', subLevel: 3, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 9, distractorCount: 5, timeLimit: 18, maxMistakes: 2, tapAssist: false, sequence: true },
+const GARDEN_TOOLS = [
+  { id: 'hoe',     emoji: '⛏️', label: 'Cuốc đất',  validState: 'empty' },
+  { id: 'water',   emoji: '💧', label: 'Tưới cây',   validState: 'planted' },
+  { id: 'harvest', emoji: '🧺', label: 'Thu hoạch',  validState: 'ripe' },
 ];
 
 const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
-  const releasedLevels = useMemo(() => getReleasedLevelConfigs(GARDEN_LEVELS), []);
   const F = fontsLoaded ? 'Nunito_900Black' : undefined;
   const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
-  const F7 = fontsLoaded ? 'Nunito_700Bold' : undefined;
-  const [screen, setScreen] = useState('play');
-  const [levelIndex, setLevelIndex] = useState(0);
-  const [playItems, setPlayItems] = useState([]);
-  const [taskProgress, setTaskProgress] = useState(0);
-  const [totalCorrect, setTotalCorrect] = useState(0);
-  const [wrongPicks, setWrongPicks] = useState(0);
-  const [, setComboStreak] = useState(0);
-  const [bestCombo, setBestCombo] = useState(0);
-  const [hintVisible, setHintVisible] = useState(false);
-  const [selectedWrongItem, setSelectedWrongItem] = useState(null);
-  const [successToast, setSuccessToast] = useState('');
-  const [targetRect, setTargetRect] = useState(null);
-  const [showPopup, setShowPopup] = useState(false);
-  const [popupStars, setPopupStars] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [sequenceTarget, setSequenceTarget] = useState([]);
-  const targetRef = useRef(null);
-  const wrongMarkOpacity = useRef(new Animated.Value(0)).current;
 
-  const currentLevel = releasedLevels[levelIndex] || null;
-  const currentMeta = currentLevel ? GARDEN_TASK_META[currentLevel.taskType] : null;
+  const plotSize = Math.min(104, Math.floor((SCREEN_WIDTH - 32 - 28) / 3));
 
-  const shuffled = (items) => [...items].sort(() => Math.random() - 0.5);
-  const chooseRandom = (pool) => pool[Math.floor(Math.random() * pool.length)];
+  // ── State ──
+  const [plots, setPlots] = useState([]);
+  const [totalHarvested, setTotalHarvested] = useState(0);
+  const [flyOverlay, setFlyOverlay] = useState(null);
+  const [dragTool, setDragTool] = useState(null);
+  const [hoveredPlotId, setHoveredPlotId] = useState(null);
 
-  const buildLevelItems = useCallback((level) => {
-    if (!level) return { items: [], sequence: [] };
-    const meta = GARDEN_TASK_META[level.taskType];
+  // ── Anim refs ──
+  const plotAnimsRef = useRef({});
+  const plotRefs = useRef({});
+  const plotLayoutsRef = useRef({});
+  const basketRef = useRef(null);
+  const basketLayoutRef = useRef(null);
+  const flyAnimX  = useRef(new Animated.Value(0)).current;
+  const flyAnimY  = useRef(new Animated.Value(0)).current;
+  const flyAnimOp = useRef(new Animated.Value(1)).current;
+  const basketBounce = useRef(new Animated.Value(1)).current;
+  const dragFloatX = useRef(new Animated.Value(-200)).current;
+  const dragFloatY = useRef(new Animated.Value(-200)).current;
+  const dragFloatScale = useRef(new Animated.Value(0)).current;
 
-    const sequence = Array.from({ length: level.targetCount }, () => chooseRandom(meta.targetEmojiPool));
-    const items = sequence.map((emoji, i) => ({
-      id: `target-${level.id}-${i}`,
-      kind: 'target',
-      emoji,
-      done: false,
-    }));
+  // ── Stable refs for PanResponder closures ──
+  const plotsRef = useRef([]);
+  const hoveredPlotIdRef = useRef(null);
+  const handlersRef = useRef({});
 
-    for (let i = 0; i < level.distractorCount; i += 1) {
-      items.push({
-        id: `wrong-${level.id}-${i}`,
-        kind: 'wrong',
-        emoji: chooseRandom(meta.distractorEmojiPool),
-        done: false,
-      });
-    }
-    return { items: shuffled(items), sequence };
+  const initPlotAnim = useCallback((id, isNew = false) => {
+    if (plotAnimsRef.current[id]) return;
+    plotAnimsRef.current[id] = {
+      grow:   new Animated.Value(1),
+      appear: new Animated.Value(isNew ? 0 : 1),
+      timers: [],
+    };
   }, []);
 
-  const prepareLevel = useCallback((level) => {
-    const next = buildLevelItems(level);
-    setPlayItems(next.items);
-    setSequenceTarget(next.sequence);
-    setTaskProgress(0);
-    setHintVisible(false);
-    setSelectedWrongItem(null);
-    setSuccessToast('');
-    setTargetRect(null);
-    setTimeLeft(level?.timeLimit ?? 0);
-    setTotalCorrect(0);
-    setWrongPicks(0);
-    setComboStreak(0);
-    setBestCombo(0);
-    wrongMarkOpacity.setValue(0);
-  }, [buildLevelItems, wrongMarkOpacity]);
-
+  // ── Init plots ──
   useEffect(() => {
-    if (currentLevel) prepareLevel(currentLevel);
-  }, [currentLevel, prepareLevel]);
+    const count = GARDEN_EXPAND_THRESHOLDS[0].plots;
+    const initial = Array.from({ length: count }, (_, i) => ({ id: i, state: 'empty', crop: null }));
+    initial.forEach(p => initPlotAnim(p.id, false));
+    setPlots(initial);
+  }, [initPlotAnim]);
 
+  // ── Keep plotsRef in sync with plots state ──
+  useEffect(() => { plotsRef.current = plots; }, [plots]);
+
+  // ── Cleanup on unmount ──
   useEffect(() => {
-    if (!currentLevel || showPopup) return;
-    const timer = setInterval(() => {
-      setTimeLeft((value) => {
-        if (value <= 1) {
-          clearInterval(timer);
-          setSuccessToast('Hết giờ rồi, thử lại màn này nhé!');
+    return () => {
+      Object.values(plotAnimsRef.current).forEach(({ grow, appear, timers }) => {
+        grow.stopAnimation();
+        appear.stopAnimation();
+        timers.forEach(clearTimeout);
+      });
+    };
+  }, []);
+
+  // ── Expansion ──
+  const checkExpansion = useCallback((newTotal) => {
+    const threshold = [...GARDEN_EXPAND_THRESHOLDS].reverse().find(t => newTotal >= t.at);
+    if (!threshold) return;
+    setPlots(prev => {
+      if (prev.length >= threshold.plots) return prev;
+      const newPlots = [];
+      for (let i = prev.length; i < threshold.plots; i++) {
+        initPlotAnim(i, true);
+        newPlots.push({ id: i, state: 'empty', crop: null });
+        const anim = plotAnimsRef.current[i];
+        if (anim) {
           setTimeout(() => {
-            setSuccessToast('');
-            setPopupStars(1);
-            setShowPopup(true);
-          }, 420);
-          return 0;
+            Animated.spring(anim.appear, {
+              toValue: 1,
+              useNativeDriver: true,
+              bounciness: 14,
+              speed: 8,
+            }).start();
+          }, (i - prev.length) * 120);
         }
-        return value - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [currentLevel, showPopup]);
-
-  const refreshTargetRect = useCallback(() => {
-    if (!targetRef.current) return;
-    targetRef.current.measureInWindow((x, y, width, height) => {
-      setTargetRect({ x, y, width, height });
-    });
-  }, []);
-
-  useLayoutEffect(() => {
-    if (screen !== 'play' || currentMeta?.interaction !== 'drag') return;
-    const timeout = setTimeout(refreshTargetRect, 120);
-    return () => clearTimeout(timeout);
-  }, [screen, levelIndex, currentMeta, refreshTargetRect]);
-
-  const getStars = useCallback(() => {
-    if (!currentLevel) return 1;
-    const accuracy = totalCorrect / Math.max(1, totalCorrect + wrongPicks);
-    if (wrongPicks === 0 && accuracy >= 0.9 && timeLeft >= Math.ceil(currentLevel.timeLimit * 0.35)) return 3;
-    if (wrongPicks <= Math.max(1, currentLevel.maxMistakes - 2) && accuracy >= 0.65) return 2;
-    return 1;
-  }, [currentLevel, timeLeft, totalCorrect, wrongPicks]);
-
-  const registerWrongPick = useCallback((itemId, customHint = null) => {
-    if (!currentLevel) return;
-    playSound('wrong');
-    setComboStreak(0);
-    setSelectedWrongItem(itemId);
-    wrongMarkOpacity.setValue(1);
-    Animated.timing(wrongMarkOpacity, {
-      toValue: 0,
-      duration: 520,
-      useNativeDriver: true,
-    }).start(() => {
-      setSelectedWrongItem(null);
-    });
-    setWrongPicks((value) => {
-      const next = value + 1;
-      if (next >= currentLevel.maxMistakes) {
-        setSuccessToast('Ôi, hết lượt sai rồi!');
-        setTimeout(() => {
-          setSuccessToast('');
-          setPopupStars(1);
-          setShowPopup(true);
-        }, 420);
       }
+      return [...prev, ...newPlots];
+    });
+    playSound('combo');
+  }, [initPlotAnim, playSound]);
+
+  // ── Action handlers ──
+  const handlePlant = useCallback((plotId) => {
+    const crop = GARDEN_CROPS[Math.floor(Math.random() * GARDEN_CROPS.length)];
+    setPlots(prev => prev.map(p => p.id === plotId ? { ...p, state: 'planted', crop } : p));
+    const anim = plotAnimsRef.current[plotId];
+    if (anim) {
+      Animated.sequence([
+        Animated.spring(anim.grow, { toValue: 1.18, useNativeDriver: true, bounciness: 12, speed: 14 }),
+        Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 12, speed: 14 }),
+      ]).start();
+    }
+    playSound('tap');
+  }, [playSound]);
+
+  const handleWater = useCallback((plotId) => {
+    setPlots(prev => {
+      const plot = prev.find(p => p.id === plotId);
+      if (!plot || plot.state !== 'planted') return prev;
+      return prev.map(p => p.id === plotId ? { ...p, state: 'growing' } : p);
+    });
+    playSound('pick');
+
+    const anim = plotAnimsRef.current[plotId];
+    if (!anim) return;
+
+    const t1 = setTimeout(() => {
+      Animated.sequence([
+        Animated.spring(anim.grow, { toValue: 1.15, useNativeDriver: true, bounciness: 10, speed: 14 }),
+        Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 10, speed: 14 }),
+      ]).start();
+    }, GROW_PHASE_DURATION);
+
+    const t2 = setTimeout(() => {
+      setPlots(prev => {
+        const plot = prev.find(p => p.id === plotId);
+        if (!plot || plot.state !== 'growing') return prev;
+        return prev.map(p => p.id === plotId ? { ...p, state: 'ripe' } : p);
+      });
+      playSound('match');
+      Animated.sequence([
+        Animated.spring(anim.grow, { toValue: 1.2, useNativeDriver: true, bounciness: 12, speed: 10 }),
+        Animated.spring(anim.grow, { toValue: 1, useNativeDriver: true, bounciness: 12, speed: 10 }),
+      ]).start();
+    }, GROW_PHASE_DURATION + RIPE_PHASE_DURATION);
+
+    anim.timers.push(t1, t2);
+  }, [playSound]);
+
+  const handleHarvest = useCallback((plot) => {
+    const anim = plotAnimsRef.current[plot.id];
+    if (anim) {
+      anim.timers.forEach(clearTimeout);
+      anim.timers = [];
+    }
+
+    const plotLayout = plotLayoutsRef.current[plot.id];
+    const basketLayout = basketLayoutRef.current;
+
+    if (plotLayout && basketLayout && plot.crop) {
+      const startX = plotLayout.x + plotLayout.width / 2 - 24;
+      const startY = plotLayout.y + plotLayout.height / 2 - 24;
+      flyAnimX.setValue(0);
+      flyAnimY.setValue(0);
+      flyAnimOp.setValue(1);
+      setFlyOverlay({ emoji: plot.crop.ripe, startX, startY });
+
+      const targetX = basketLayout.x + basketLayout.width / 2 - 24 - startX;
+      const targetY = basketLayout.y + basketLayout.height / 2 - 24 - startY;
+
+      Animated.parallel([
+        Animated.timing(flyAnimX, { toValue: targetX, duration: 520, useNativeDriver: true }),
+        Animated.timing(flyAnimY, { toValue: targetY, duration: 520, useNativeDriver: true }),
+        Animated.timing(flyAnimOp, { toValue: 0, duration: 480, useNativeDriver: true }),
+      ]).start(() => setFlyOverlay(null));
+    }
+
+    setPlots(prev => prev.map(p => p.id === plot.id ? { ...p, state: 'empty', crop: null } : p));
+
+    setTotalHarvested(prev => {
+      const next = prev + 1;
+      checkExpansion(next);
       return next;
     });
-    if (currentLevel.tier === 'easy' || currentLevel.tier === 'medium') {
-      setHintVisible(true);
-      setTimeout(() => setHintVisible(false), 1500);
-    }
-    if (customHint) {
-      setSuccessToast(customHint);
-      setTimeout(() => setSuccessToast(''), 1100);
-    }
-  }, [currentLevel, playSound, wrongMarkOpacity]);
-
-  const goNextLevel = useCallback(() => {
-    const nextLevelIndex = levelIndex + 1;
-    if (nextLevelIndex >= releasedLevels.length) {
-      setPopupStars(getStars());
-      setShowPopup(true);
-      return;
-    }
-    setLevelIndex(nextLevelIndex);
-  }, [getStars, levelIndex, releasedLevels.length]);
-
-  const registerCorrectPick = useCallback((itemId) => {
-    if (!currentLevel || !currentMeta) return;
-    const item = playItems.find((entry) => entry.id === itemId);
-    if (!item || item.done) return;
-
-    const expectedEmoji = sequenceTarget[taskProgress] || null;
-    if (currentLevel.sequence && expectedEmoji && item.emoji !== expectedEmoji) {
-      registerWrongPick(itemId, `Thử theo thứ tự: ${expectedEmoji}`);
-      return;
-    }
 
     playSound('match');
-    setPlayItems((prev) =>
-      prev.map((entry) => (entry.id === itemId ? { ...entry, done: true } : entry))
-    );
-    setTaskProgress((prev) => {
-      const next = prev + 1;
-      if (next >= currentLevel.targetCount) {
-        setSuccessToast(currentMeta.successToast);
-        setTimeout(() => {
-          setSuccessToast('');
-          const stars = getStars();
-          if (stars <= 1) {
-            setPopupStars(1);
-            setShowPopup(true);
-          } else {
-            goNextLevel();
+    Animated.sequence([
+      Animated.spring(basketBounce, { toValue: 1.3, useNativeDriver: true, bounciness: 14, speed: 10 }),
+      Animated.spring(basketBounce, { toValue: 1, useNativeDriver: true, bounciness: 14, speed: 10 }),
+    ]).start();
+  }, [basketBounce, checkExpansion, flyAnimOp, flyAnimX, flyAnimY, playSound]);
+
+  // ── Keep handlersRef current on every render (no hook needed) ──
+  handlersRef.current = { handlePlant, handleWater, handleHarvest, playSound };
+
+  // ── PanResponders (created once; use stable refs for callbacks) ──
+  const panRespondersRef = useRef(null);
+  if (!panRespondersRef.current) {
+    const createPan = (toolId) => {
+      const validState = GARDEN_TOOLS.find(t => t.id === toolId)?.validState;
+      return PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt) => {
+          const { pageX, pageY } = evt.nativeEvent;
+          dragFloatX.setValue(pageX - 32);
+          dragFloatY.setValue(pageY - 32);
+          dragFloatScale.setValue(0);
+          setDragTool(toolId);
+          Animated.spring(dragFloatScale, {
+            toValue: 1.2, useNativeDriver: true, bounciness: 14, speed: 18,
+          }).start();
+          handlersRef.current.playSound('pick');
+        },
+        onPanResponderMove: (evt) => {
+          const { pageX, pageY } = evt.nativeEvent;
+          dragFloatX.setValue(pageX - 32);
+          dragFloatY.setValue(pageY - 32);
+          let newHovered = null;
+          for (const [idStr, layout] of Object.entries(plotLayoutsRef.current)) {
+            const id = parseInt(idStr, 10);
+            if (
+              pageX >= layout.x && pageX <= layout.x + layout.width &&
+              pageY >= layout.y && pageY <= layout.y + layout.height
+            ) {
+              const plot = plotsRef.current.find(p => p.id === id);
+              if (plot && plot.state === validState) { newHovered = id; break; }
+            }
           }
-        }, 720);
-      }
-      return next;
-    });
-    setTotalCorrect((value) => value + 1);
-    setComboStreak((value) => {
-      const next = value + 1;
-      setBestCombo((best) => Math.max(best, next));
-      return next;
-    });
-  }, [currentLevel, currentMeta, getStars, goNextLevel, playItems, playSound, registerWrongPick, sequenceTarget, taskProgress]);
+          if (newHovered !== hoveredPlotIdRef.current) {
+            hoveredPlotIdRef.current = newHovered;
+            setHoveredPlotId(newHovered);
+          }
+        },
+        onPanResponderRelease: (evt) => {
+          const { pageX, pageY } = evt.nativeEvent;
+          let matchedPlot = null;
+          for (const [idStr, layout] of Object.entries(plotLayoutsRef.current)) {
+            const id = parseInt(idStr, 10);
+            if (
+              pageX >= layout.x && pageX <= layout.x + layout.width &&
+              pageY >= layout.y && pageY <= layout.y + layout.height
+            ) {
+              const plot = plotsRef.current.find(p => p.id === id);
+              if (plot && plot.state === validState) { matchedPlot = plot; break; }
+            }
+          }
+          if (matchedPlot) {
+            if (toolId === 'hoe') handlersRef.current.handlePlant(matchedPlot.id);
+            else if (toolId === 'water') handlersRef.current.handleWater(matchedPlot.id);
+            else handlersRef.current.handleHarvest(matchedPlot);
+          } else {
+            handlersRef.current.playSound('wrong');
+          }
+          Animated.spring(dragFloatScale, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 4 }).start(() => {
+            setDragTool(null);
+          });
+          hoveredPlotIdRef.current = null;
+          setHoveredPlotId(null);
+        },
+        onPanResponderTerminate: () => {
+          dragFloatScale.setValue(0);
+          setDragTool(null);
+          hoveredPlotIdRef.current = null;
+          setHoveredPlotId(null);
+        },
+      });
+    };
+    panRespondersRef.current = {
+      hoe: createPan('hoe'),
+      water: createPan('water'),
+      harvest: createPan('harvest'),
+    };
+  }
 
-  const handleHarvestTap = useCallback((itemId) => {
-    const item = playItems.find((entry) => entry.id === itemId);
-    if (!item || item.done) return;
-    if (item.kind === 'target') {
-      registerCorrectPick(itemId);
-      return;
-    }
-    registerWrongPick(itemId);
-  }, [playItems, registerCorrectPick, registerWrongPick]);
-
-  const isInsideTarget = useCallback((absX, absY) => {
-    if (!targetRect) return false;
-    return (
-      absX >= targetRect.x &&
-      absX <= targetRect.x + targetRect.width &&
-      absY >= targetRect.y &&
-      absY <= targetRect.y + targetRect.height
-    );
-  }, [targetRect]);
-
-  const handleDropAtScreen = useCallback((itemId, absX, absY) => {
-    const item = playItems.find((entry) => entry.id === itemId);
-    if (!item || item.done) return;
-    if (!isInsideTarget(absX, absY)) {
-      registerWrongPick(itemId);
-      return;
-    }
-    if (item.kind === 'target') {
-      registerCorrectPick(itemId);
-      return;
-    }
-    registerWrongPick(itemId);
-  }, [isInsideTarget, playItems, registerCorrectPick, registerWrongPick]);
-
-  const handleDragTap = useCallback((itemId) => {
-    const item = playItems.find((entry) => entry.id === itemId);
-    if (!item || item.done) return;
-    if (!currentLevel?.tapAssist) {
-      registerWrongPick(itemId, 'Màn này cần kéo thả vào đúng mục tiêu nhé!');
-      return;
-    }
-    if (item.kind === 'target') {
-      registerCorrectPick(itemId);
-      return;
-    }
-    registerWrongPick(itemId);
-  }, [currentLevel, playItems, registerCorrectPick, registerWrongPick]);
-
-  const handleContinue = () => {
-    setShowPopup(false);
-    if (popupStars <= 1) {
-      if (currentLevel) prepareLevel(currentLevel);
-    } else if (levelIndex < releasedLevels.length - 1) {
-      setLevelIndex((value) => value + 1);
-    } else {
-      onExit();
-    }
+  // ── Helpers ──
+  const getPlotEmoji = (plot) => {
+    if (plot.state === 'empty') return null;
+    if (plot.state === 'planted') return '🌱';
+    if (plot.state === 'growing') return '🌿';
+    if (plot.state === 'ripe') return plot.crop?.ripe ?? '🌾';
+    return null;
   };
 
-  if (screen === 'play' && currentLevel && currentMeta) {
-    const finishedCount = playItems.filter((item) => item.kind === 'target' && item.done).length;
-    const taskLeft = Math.max(0, currentLevel.targetCount - finishedCount);
-    const visibleItems = playItems.filter((item) => !item.done);
-    const isDragTask = currentMeta.interaction === 'drag';
-    const nextVisibleTarget = visibleItems.find((item) => item.kind === 'target');
-    const previewEmoji = currentLevel.sequence
-      ? (sequenceTarget[taskProgress] || nextVisibleTarget?.emoji || currentMeta.targetEmojiPool[0])
-      : currentMeta.icon;
-    const mistakesLeft = Math.max(0, currentLevel.maxMistakes - wrongPicks);
+  const getPlotGradient = (plot) => {
+    if (plot.state === 'empty') return ['#8B5E3C', '#A0714F'];
+    if (plot.state === 'planted') return ['#F5F0DC', '#FEF9E7'];
+    if (plot.state === 'growing') return ['#DCFCE7', '#BBF7D0'];
+    if (plot.state === 'ripe') return [FARM.cardMatched, FARM.hillColor];
+    return ['#8B5E3C', '#A0714F'];
+  };
 
-    return (
-      <LinearGradient colors={FARM.skyGradient} style={{ flex: 1 }}>
-        <StatusBar barStyle="dark-content" />
-        <View style={[styles.farmPlayHeader, { marginTop: 10 }]}>
-          <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
-            <View style={styles.farmCloseButton}>
-              <Ionicons name="close" size={22} color="#FFFFFF" />
-            </View>
-          </AnimatedPressable>
-          <View style={styles.farmLevelBadge}>
-            <Text style={[styles.farmLevelText, { fontFamily: F }]}>Màn {levelIndex + 1}</Text>
+  return (
+    <LinearGradient colors={FARM.skyGradient} style={{ flex: 1 }}>
+      <StatusBar barStyle="dark-content" />
+
+      {/* Header */}
+      <View style={[styles.farmPlayHeader, { marginTop: 10 }]}>
+        <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
+          <View style={styles.farmCloseButton}>
+            <Ionicons name="close" size={22} color="#FFFFFF" />
           </View>
-          <View style={styles.farmHeaderSpacer} />
+        </AnimatedPressable>
+        <View style={styles.farmLevelBadge}>
+          <Text style={[styles.farmLevelText, { fontFamily: F }]}>🌾 Vườn của bé</Text>
         </View>
+        <Animated.View
+          ref={basketRef}
+          onLayout={() => {
+            if (basketRef.current) {
+              basketRef.current.measureInWindow((x, y, w, h) => {
+                basketLayoutRef.current = { x, y, width: w, height: h };
+              });
+            }
+          }}
+          style={[styles.gardenBasketBadge, { transform: [{ scale: basketBounce }] }]}
+        >
+          <Text style={styles.gardenBasketEmoji}>🧺</Text>
+          <Text style={[styles.gardenBasketCount, { fontFamily: F8 }]}>{totalHarvested}</Text>
+        </Animated.View>
+      </View>
 
-        <View style={styles.gardenPlayWrap}>
-          <View style={styles.gardenMissionCard}>
-            <Text style={[styles.gardenMissionTitle, { fontFamily: F }]}>
-              {currentMeta.title} · {getTierLabel(currentLevel.tier)}
-            </Text>
-            <View style={styles.gardenMissionStatsRow}>
-              <View style={styles.gardenMissionStatChip}>
-                <Text style={[styles.gardenMissionStatText, { fontFamily: F8 }]}>🎯 {taskLeft}</Text>
+      {/* Instruction strip */}
+      <View style={styles.gardenInstructionRow}>
+        <Text style={[styles.gardenInstructionText, { fontFamily: F8 }]}>
+          Kéo dụng cụ vào ô đất để cuốc · tưới · thu hoạch
+        </Text>
+      </View>
+
+      {/* Plot grid */}
+      <View style={styles.gardenPlotGrid}>
+        {plots.map(plot => {
+          const anim = plotAnimsRef.current[plot.id];
+          const scaleTransform = anim
+            ? [{ scale: anim.appear }, { scale: anim.grow }]
+            : [];
+          const emoji = getPlotEmoji(plot);
+          const isHovered = hoveredPlotId === plot.id;
+          return (
+            <Animated.View
+              key={plot.id}
+              style={[styles.gardenPlotWrap, { transform: scaleTransform }]}
+            >
+              <View
+                ref={ref => { plotRefs.current[plot.id] = ref; }}
+                onLayout={(e) => {
+                  const layout = e.nativeEvent.layout;
+                  if (plotRefs.current[plot.id]) {
+                    plotRefs.current[plot.id].measureInWindow((x, y, w, h) => {
+                      plotLayoutsRef.current[plot.id] = { x, y, width: w, height: h };
+                    });
+                  } else {
+                    plotLayoutsRef.current[plot.id] = layout;
+                  }
+                }}
+              >
+                <LinearGradient
+                  colors={getPlotGradient(plot)}
+                  style={[
+                    styles.gardenPlot,
+                    { width: plotSize, height: plotSize },
+                    plot.state === 'empty' && styles.gardenPlotEmpty,
+                    isHovered && styles.gardenPlotHovered,
+                  ]}
+                >
+                  {emoji ? (
+                    <Text style={styles.gardenPlotEmoji}>{emoji}</Text>
+                  ) : null}
+                  {plot.state === 'ripe' && (
+                    <View style={styles.gardenRipeBadge}>
+                      <Text style={styles.gardenRipeBadgeText}>✓</Text>
+                    </View>
+                  )}
+                  {plot.state === 'growing' && (
+                    <View style={styles.gardenGrowingBadge}>
+                      <Text style={styles.gardenGrowingBadgeText}>💧</Text>
+                    </View>
+                  )}
+                </LinearGradient>
               </View>
-              <View style={styles.gardenMissionStatChip}>
-                <Text style={[styles.gardenMissionStatText, { fontFamily: F8 }]}>⏱️ {timeLeft}s</Text>
-              </View>
-              <View style={styles.gardenMissionStatChip}>
-                <Text style={[styles.gardenMissionStatText, { fontFamily: F8 }]}>❤️ {mistakesLeft}</Text>
-              </View>
-            </View>
-            <View style={styles.gardenTargetPreviewCard}>
-              <View style={styles.gardenTargetPreviewIconWrap}>
-                <Text style={styles.gardenTargetPreviewEmoji}>{previewEmoji}</Text>
-              </View>
-            </View>
-            <Text style={[styles.gardenMissionHint, { fontFamily: F8 }]}>{currentMeta.actionHint}</Text>
-            {currentLevel.sequence && (
-              <Text style={[styles.gardenMissionHint, { fontFamily: F8 }]}>✨ Làm đúng theo thứ tự</Text>
-            )}
-            {hintVisible && (
-              <View style={styles.gardenHintBubble}>
-                <Text style={[styles.gardenHintText, { fontFamily: F7 }]}>Gợi ý: {currentMeta.actionHint}</Text>
-              </View>
-            )}
-            {successToast ? (
-              <View style={styles.gardenToast}>
-                <Text style={[styles.gardenToastText, { fontFamily: F8 }]}>{successToast}</Text>
-              </View>
-            ) : null}
+            </Animated.View>
+          );
+        })}
+      </View>
+
+      {/* Tool tray */}
+      <View style={styles.gardenToolTray}>
+        {GARDEN_TOOLS.map(tool => (
+          <View key={tool.id} style={styles.gardenToolWrap} {...panRespondersRef.current[tool.id].panHandlers}>
+            <LinearGradient colors={FARM.playButtonGradient} style={styles.gardenToolButton}>
+              <Text style={styles.gardenToolEmoji}>{tool.emoji}</Text>
+            </LinearGradient>
+            <Text style={[styles.gardenToolLabel, { fontFamily: F8 }]}>{tool.label}</Text>
           </View>
+        ))}
+      </View>
 
-          {isDragTask ? (
-            <View style={styles.gardenDragTaskWrap}>
-              <View ref={targetRef} onLayout={refreshTargetRect} style={styles.gardenDropZone}>
-                <Text style={styles.gardenDropZoneIcon}>{currentMeta.icon}</Text>
-                <Text style={[styles.gardenDropZoneLabel, { fontFamily: F }]}>{currentMeta.targetLabel}</Text>
-                <Text style={[styles.gardenDropZoneCounter, { fontFamily: F }]}>
-                  {taskProgress}/{currentLevel.targetCount}
-                </Text>
-              </View>
+      {/* Fly overlay */}
+      {flyOverlay && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.gardenFlyOverlay,
+            {
+              left: flyOverlay.startX,
+              top: flyOverlay.startY,
+              transform: [{ translateX: flyAnimX }, { translateY: flyAnimY }],
+              opacity: flyAnimOp,
+            },
+          ]}
+        >
+          <Text style={styles.gardenFlyEmoji}>{flyOverlay.emoji}</Text>
+        </Animated.View>
+      )}
 
-              <View style={styles.gardenDragTray}>
-                {visibleItems.map((item) => (
-                  <GardenDraggableItem
-                    key={item.id}
-                    item={item}
-                    disabled={item.done}
-                    isDone={item.done}
-                    isWrong={selectedWrongItem === item.id}
-                    wrongMarkOpacity={wrongMarkOpacity}
-                    onTap={handleDragTap}
-                    onDropAtScreen={handleDropAtScreen}
-                    allowTap={currentLevel.tapAssist}
-                  />
-                ))}
-              </View>
-            </View>
-          ) : (
-            <View style={styles.gardenHarvestGrid}>
-              {visibleItems.map((item) => {
-                const isWrong = selectedWrongItem === item.id;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    onPress={() => handleHarvestTap(item.id)}
-                    disabled={item.done}
-                    activeOpacity={0.86}
-                  >
-                    <LinearGradient
-                      colors={
-                        isWrong
-                          ? [FARM.closeButtonBg, FARM.closeButtonBorder]
-                          : item.done
-                            ? [FARM.cardMatched, FARM.hillColor]
-                            : [FARM.cardFront, '#FFFEF5']
-                      }
-                      style={[styles.gardenHarvestItem, isWrong && { borderColor: FARM.closeButtonBorder }]}
-                    >
-                      <Text style={styles.gardenHarvestEmoji}>{item.emoji}</Text>
-                      {item.done && (
-                        <View style={styles.gardenCheckBadge}>
-                          <Text style={styles.gardenCheckBadgeText}>✓</Text>
-                        </View>
-                      )}
-                      {isWrong && (
-                        <Animated.View style={[styles.gardenWrongMark, { opacity: wrongMarkOpacity }]}>
-                          <Text style={styles.gardenWrongMarkText}>✕</Text>
-                        </Animated.View>
-                      )}
-                    </LinearGradient>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
+      {/* Floating drag tool — follows finger */}
+      {dragTool && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.gardenDragFloat,
+            {
+              transform: [
+                { translateX: dragFloatX },
+                { translateY: dragFloatY },
+                { scale: dragFloatScale },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.gardenDragFloatEmoji}>
+            {GARDEN_TOOLS.find(t => t.id === dragTool)?.emoji}
+          </Text>
+        </Animated.View>
+      )}
 
-        <View style={styles.farmGrassBar} />
-
-        <RewardPopup
-          visible={showPopup}
-          stars={popupStars}
-          levelNum={levelIndex + 1}
-          totalLevels={releasedLevels.length}
-          onContinue={handleContinue}
-          onExit={() => { setShowPopup(false); onExit(); }}
-          playSound={playSound}
-          fontsLoaded={fontsLoaded}
-        />
-      </LinearGradient>
-    );
-  }
-  return null;
+      <View style={styles.farmGrassBar} />
+    </LinearGradient>
+  );
 };
 
 // ============================================
@@ -3171,244 +3082,155 @@ const styles = StyleSheet.create({
     color: '#FFFBE8', fontSize: 22, fontWeight: '900', marginBottom: 10, textAlign: 'center',
     textShadowColor: 'rgba(59,9,99,0.42)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 5,
   },
-  gardenPlayWrap: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    justifyContent: 'center',
-  },
-  gardenMissionCard: {
-    marginTop: 4,
-    backgroundColor: FARM.cardFront,
-    borderRadius: 22,
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-    borderWidth: 2,
-    borderColor: FARM.cardFrontBorder,
-    ...SHADOWS.card,
-  },
-  gardenMissionTitle: {
-    color: FARM.headerTitleColor,
-    fontSize: 22,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  gardenMissionStatsRow: {
+  gardenInstructionRow: {
+    alignSelf: 'center',
     marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  gardenMissionStatChip: {
-    backgroundColor: FARM.cardMatched,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: FARM.cardMatchedBorder,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  gardenMissionStatText: {
-    color: FARM.subtitleColor,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  gardenMissionSub: {
-    marginTop: 4,
-    color: FARM.subtitleColor,
-    fontSize: 15,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  gardenMissionHint: {
-    marginTop: 6,
-    color: FARM.subtitleColor,
-    fontSize: 16,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  gardenTargetPreviewCard: {
-    marginTop: 10,
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 260,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.65)',
-    borderWidth: 2,
-    borderColor: FARM.cardMatchedBorder,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-  },
-  gardenTargetPreviewLabel: {
-    color: FARM.subtitleColor,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  gardenTargetPreviewIconWrap: {
-    marginTop: 6,
-    width: 88,
-    height: 88,
+    marginBottom: 4,
+    backgroundColor: 'rgba(255,255,255,0.55)',
     borderRadius: 20,
-    backgroundColor: FARM.cardFront,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: FARM.cardFrontBorder,
-  },
-  gardenTargetPreviewEmoji: {
-    fontSize: 62,
-    lineHeight: 66,
-  },
-  gardenTargetPreviewName: {
-    marginTop: 6,
-    color: FARM.titleColor,
-    fontSize: 20,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  gardenHintBubble: {
-    marginTop: 10,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255, 249, 223, 0.95)',
-    borderRadius: 14,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
-    borderWidth: 2,
-    borderColor: FARM.cardHintBorder,
-    ...SHADOWS.header,
   },
-  gardenHintText: {
+  gardenInstructionText: {
     color: FARM.subtitleColor,
     fontSize: 13,
     fontWeight: '800',
+    textAlign: 'center',
   },
-  gardenToast: {
-    marginTop: 10,
-    alignSelf: 'center',
+  gardenBasketBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: FARM.cardMatched,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: FARM.cardMatchedBorder,
-    ...SHADOWS.header,
-  },
-  gardenToastText: {
-    color: FARM.bodyText,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  gardenDragTaskWrap: {
-    marginTop: 14,
-    gap: 12,
-  },
-  gardenDropZone: {
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: FARM.grassMid,
-    minHeight: 182,
-    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 62,
+    height: 44,
     justifyContent: 'center',
+    gap: 4,
     ...SHADOWS.header,
   },
-  gardenDropZoneIcon: {
-    fontSize: 56,
+  gardenBasketEmoji: {
+    fontSize: 20,
   },
-  gardenDropZoneLabel: {
-    marginTop: 8,
-    color: FARM.titleColor,
-    fontSize: 16,
+  gardenBasketCount: {
+    color: FARM.subtitleColor,
+    fontSize: 18,
     fontWeight: '900',
   },
-  gardenDropZoneCounter: {
-    marginTop: 5,
-    color: FARM.headerTitleColor,
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  gardenDragTray: {
+  gardenPlotGrid: {
+    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
+    alignContent: 'center',
     gap: 14,
+    paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  gardenDragWrap: {
-    borderRadius: 14,
+  gardenPlotWrap: {
+    borderRadius: 20,
     ...SHADOWS.button,
   },
-  gardenDragItem: {
-    width: 98,
-    height: 98,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: FARM.cardFrontBorder,
-  },
-  gardenDragEmoji: {
-    fontSize: 52,
-  },
-  gardenHarvestGrid: {
-    marginTop: 14,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 14,
-  },
-  gardenHarvestItem: {
-    width: 104,
-    height: 104,
+  gardenPlot: {
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: FARM.cardFrontBorder,
-    ...SHADOWS.button,
   },
-  gardenHarvestEmoji: {
-    fontSize: 56,
+  gardenPlotEmpty: {
+    borderStyle: 'dashed',
+    borderColor: '#A0714F',
   },
-  gardenCheckBadge: {
+  gardenPlotEmoji: {
+    fontSize: 52,
+  },
+  gardenRipeBadge: {
     position: 'absolute',
     top: 6,
     right: 6,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: FARM.grassDark,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: FARM.grassMid,
   },
-  gardenCheckBadgeText: {
+  gardenRipeBadgeText: {
     color: FARM.white,
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '900',
-    lineHeight: 18,
+    lineHeight: 16,
   },
-  gardenWrongMark: {
+  gardenGrowingBadge: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    bottom: 4,
+    right: 4,
+  },
+  gardenGrowingBadgeText: {
+    fontSize: 18,
+  },
+  gardenFlyOverlay: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.22)',
+    zIndex: 99,
   },
-  gardenWrongMarkText: {
-    color: FARM.closeButtonBorder,
-    fontSize: 52,
-    fontWeight: '900',
-    textShadowColor: 'rgba(255,255,255,0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  gardenFlyEmoji: {
+    fontSize: 40,
+  },
+  gardenToolTray: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  gardenToolWrap: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  gardenToolButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: FARM.playButtonShadow,
+    ...SHADOWS.button,
+  },
+  gardenToolEmoji: {
+    fontSize: 30,
+  },
+  gardenToolLabel: {
+    color: FARM.subtitleColor,
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  gardenPlotHovered: {
+    borderWidth: 3,
+    borderColor: FARM.cardHintBorder,
+  },
+  gardenDragFloat: {
+    position: 'absolute',
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+  },
+  gardenDragFloatEmoji: {
+    fontSize: 48,
   },
   countQuestionCard: {
     flex: 1,
