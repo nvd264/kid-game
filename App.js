@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
+import { FARM, SHADOWS } from './theme';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StatusBar, Animated, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
@@ -195,7 +196,7 @@ class SoundManager {
   constructor() {
     this.sounds = {};
     this.loaded = false;
-    this.backgroundEnabled = false;
+    this.backgroundEnabled = true;
     this.externalSound = null;
     this.letterSounds = {};
     this.letterSoundsLoaded = false;
@@ -468,10 +469,15 @@ const MemoryCard = ({ card, isFlipped, isMatched, cardSize, onPress, disabled, i
     return () => loop.stop();
   }, [isHinted, isMatched, face, hintAnim]);
 
-  const bg = isMatched ? '#E8FAEB' : '#FFFFFF';
-  const shadow = isMatched
-    ? { shadowColor: '#18C66A', shadowOpacity: 0.58, shadowRadius: 9, elevation: 8 }
-    : { elevation: 3, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4 };
+  const bg = isMatched
+    ? FARM.cardMatched
+    : face === 'back' ? FARM.cardBack : FARM.cardFront;
+  const borderCol = isMatched
+    ? FARM.cardMatchedBorder
+    : isHinted && face === 'back'
+      ? FARM.cardHintBorder
+      : face === 'back' ? FARM.cardBackBorder : FARM.cardFrontBorder;
+  const shadow = isMatched ? SHADOWS.cardMatched : SHADOWS.card;
   const hintScale = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] });
   const hintLift = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
   const handLift = hintAnim.interpolate({ inputRange: [0, 1], outputRange: [-22, -12] });
@@ -488,7 +494,7 @@ const MemoryCard = ({ card, isFlipped, isMatched, cardSize, onPress, disabled, i
           backgroundColor: bg,
           opacity: fadeAnim,
           borderWidth: isHinted && face === 'back' ? 4 : 3,
-          borderColor: isHinted && face === 'back' ? '#FFE38B' : '#FFFFFF',
+          borderColor: borderCol,
           transform: [
             { scaleX: flipAnim },
             { scale: scaleAnim },
@@ -501,7 +507,7 @@ const MemoryCard = ({ card, isFlipped, isMatched, cardSize, onPress, disabled, i
           ? <Icon value={card.value} size={cardSize * 0.65} />
           : (
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: cardSize * 0.55, color: '#7C3AED', fontWeight: '900' }}>?</Text>
+              <Text style={{ fontSize: cardSize * 0.52 }}>🐾</Text>
             </View>
           )
         }
@@ -599,17 +605,6 @@ const getTierLabel = (tier) => {
   }
 };
 
-const getTierIcon = (tier) => {
-  switch (tier) {
-    case 'easy': return '🐣';
-    case 'medium': return '🐥';
-    case 'hard': return '🦊';
-    case 'expert': return '🚀';
-    case 'master': return '👑';
-    default: return '🎯';
-  }
-};
-
 // ============ LETTER GAME DATA (29 chữ cái tiếng Việt, không gồm F J W Z) ============
 // Minh hoạ: emoji → ảnh Twemoji. Phát âm: MP3 Piper (một lần tổng hợp "Chữ X." + nghỉ + từ ví dụ).
 const VIETNAMESE_ALPHABET = [
@@ -661,7 +656,8 @@ const ConfettiParticle = ({ anim, x, emoji, size }) => {
 };
 
 // Reward popup modal — shown after each level win
-const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue, onExit, playSound }) => {
+const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue, onExit, playSound, fontsLoaded }) => {
+  const F = fontsLoaded ? 'Nunito_900Black' : undefined;
   const starScales = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
   const confettiAnims = useRef(Array.from({ length: 18 }, () => new Animated.Value(0))).current;
   const celebrationStoppedRef = useRef(false);
@@ -729,16 +725,9 @@ const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue, onExit
         {confettiAnims.map((anim, i) => (
           <ConfettiParticle key={i} anim={anim} x={confettiData[i].x} emoji={confettiData[i].emoji} size={confettiData[i].size} />
         ))}
-        <View style={styles.popupCard}>
-          <TouchableOpacity
-            onPress={() => { stopCelebration(); playSound('tap'); onExit(); }}
-            style={styles.popupCloseBtn}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.popupCloseBtnText}>✕</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.popupPraiseText}>{praiseText}</Text>
+        <View style={styles.popupCardShell}>
+          <View style={styles.popupCard}>
+            <Text style={[styles.popupPraiseText, { fontFamily: F }]}>{praiseText}</Text>
 
           <View style={{ flexDirection: 'row', gap: 8, marginVertical: 14 }}>
             {[0, 1, 2].map((i) => (
@@ -748,44 +737,34 @@ const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue, onExit
             ))}
           </View>
 
-          <Text style={styles.popupLevelText}>{levelNum}/{totalLevels}</Text>
+          <View style={styles.popupLevelBadge}>
+            <Text style={[styles.popupLevelText, { fontFamily: F }]}>Màn {levelNum}/{totalLevels}</Text>
+          </View>
 
           <AnimatedPressable
             onPress={() => { stopCelebration(); playSound('tap'); onContinue(); }}
             style={{ width: '100%', marginTop: 18 }}
           >
-            <LinearGradient colors={['#FBBF24', '#EA580C']} style={styles.winButton}>
-              <Text style={styles.winButtonText}>{continueLabel}</Text>
+            <LinearGradient colors={FARM.playButtonGradient} style={[styles.winButton, SHADOWS.button]}>
+              <Text style={[styles.winButtonText, { fontFamily: F }]}>{continueLabel}</Text>
             </LinearGradient>
           </AnimatedPressable>
+          </View>
+          {/* TouchableOpacity must own absolute position — AnimatedPressable puts style on an inner View */}
+          <TouchableOpacity
+            onPress={() => { stopCelebration(); playSound('tap'); onExit(); }}
+            style={styles.popupCloseWrap}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Đóng"
+          >
+            <View style={styles.farmCloseButton}>
+              <Ionicons name="close" size={22} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
-  );
-};
-
-const LevelProgressHeader = ({
-  tier,
-  levelNum,
-  totalLevels,
-}) => {
-  const pct = Math.max(0, Math.min(1, levelNum / Math.max(1, totalLevels)));
-  return (
-    <View style={styles.levelHeaderCard}>
-      <View style={styles.levelHeaderTopRow}>
-        <View style={styles.levelHeaderTierIconWrap}>
-          <Text style={styles.levelHeaderTierIcon}>{getTierIcon(tier)}</Text>
-        </View>
-        <View style={styles.levelHeaderValueWrap}>
-          <Text style={styles.levelHeaderValueMain}>{levelNum}/{totalLevels}</Text>
-        </View>
-      </View>
-      <View style={styles.levelHeaderBarTrack}>
-        <View style={[styles.levelHeaderBarFill, { width: `${Math.round(pct * 100)}%` }]}>
-          <View style={styles.levelHeaderProgressGlow} />
-        </View>
-      </View>
-    </View>
   );
 };
 
@@ -852,12 +831,12 @@ const PUZZLE_LEVELS = [
   { key: makeLevelKey('master', 3), tier: 'master', subLevel: 3, maxCount: 12, optionCount: 8, mistakeBudget: 2, star2MaxWrong: 0 },
 ];
 
-const MemoryGame = ({ playSound, onExit }) => {
+const MemoryGame = ({ playSound, onExit, fontsLoaded }) => {
   const releasedLevels = useMemo(() => getReleasedLevelConfigs(MEMORY_LEVELS), []);
   const memoryThemeGradients = useMemo(() => ({
-    animals: ['#F43F5E', '#FB923C'],
-    fruits: ['#EC4899', '#8B5CF6'],
-    vehicles: ['#F97316', '#EAB308'],
+    animals: ['#FB923C', '#FBBF24'],
+    fruits:  ['#F472B6', '#FB923C'],
+    vehicles: ['#60A5FA', '#34D399'],
   }), []);
   const [screen, setScreen] = useState('theme');
   const [selectedTheme, setSelectedTheme] = useState(null);
@@ -1004,41 +983,50 @@ const MemoryGame = ({ playSound, onExit }) => {
   // ── Theme screen ──
   if (screen === 'theme') {
     return (
-      <LinearGradient colors={['#EC4899', '#FB923C']} style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
+      <LinearGradient colors={FARM.skyGradient} style={{ flex: 1 }}>
+        <StatusBar barStyle="dark-content" />
+        {/* Header */}
+        <View style={[styles.header, { marginTop: 10, paddingVertical: 0 }]}>
+          <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
+            <View style={styles.farmCloseButton}>
+              <Ionicons name="close" size={22} color="#FFFFFF" />
+            </View>
           </AnimatedPressable>
-          <Text style={[styles.headerTitle, { color: '#FFF9F0', textShadowColor: 'rgba(57,8,89,0.35)', textShadowRadius: 3 }]}>🃏 Chủ đề</Text>
-          <View style={{ width: 70 }} />
+          <Text style={styles.farmHeaderTitle}>🃏 Chủ đề</Text>
+          <View style={{ width: 44 }} />
         </View>
 
-        <View style={styles.kidSelectIntroCard}>
-          <Text style={styles.kidSelectIntroTitle}>🃏 Chọn bộ hình</Text>
-          <Text style={styles.kidSelectIntroSub}>🎯 10 màn mở khóa</Text>
-        </View>
-
-        <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={{ flex: 1, width: '100%' }}
+          contentContainerStyle={[styles.kidSelectScrollContent, styles.farmThemeSelectScrollContent]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.farmIntroCard}>
+            <Text style={styles.farmIntroTitle}>Chọn bộ hình</Text>
+            <Text style={styles.farmIntroSub}>10 màn · Flip & Match!</Text>
+          </View>
           {THEME_ORDER.map((key) => {
             const theme = themes[key];
             if (!theme) return null;
             return (
               <AnimatedPressable key={key}
                 onPress={() => { playSound('themeSelect'); startGame(key, 0); }}>
-                <LinearGradient colors={memoryThemeGradients[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
-                  <View style={styles.kidThemeEmojiWrap}>
+                <LinearGradient colors={memoryThemeGradients[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.farmThemeCard}>
+                  <View style={styles.farmThemeEmojiWrap}>
                     <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
                   </View>
                   <View style={styles.kidThemeTextWrap}>
-                    <Text style={styles.kidThemeName}>{theme.name}</Text>
-                    <Text style={styles.kidThemeSub}>▶</Text>
+                    <Text style={styles.farmThemeName}>{theme.name}</Text>
+                    <Text style={styles.farmThemeSub}>CHƠI NGAY ▶</Text>
                   </View>
                 </LinearGradient>
               </AnimatedPressable>
             );
           })}
         </ScrollView>
+
+        {/* Grass decoration */}
+        <View style={styles.farmGrassBar} />
       </LinearGradient>
     );
   }
@@ -1051,7 +1039,7 @@ const MemoryGame = ({ playSound, onExit }) => {
     while (cols > 1 && totalCards % cols !== 0) cols -= 1;
     const rows = totalCards / cols;
     const gap = cols <= 2 ? 12 : cols === 3 ? 10 : 8;
-    const reservedHeight = 44 + 44 + 58 + 36 + 24;
+    const reservedHeight = 10 + 44 + FARM.headerContentGap + 58 + 36 + 24;
     const availH = SCREEN_HEIGHT - reservedHeight;
     const availW = SCREEN_WIDTH - 32;
 
@@ -1063,19 +1051,21 @@ const MemoryGame = ({ playSound, onExit }) => {
     const gridW = cols * cardSize + (cols - 1) * gap;
 
     return (
-      <LinearGradient colors={['#DB2777', '#F59E0B']} style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
+      <LinearGradient colors={FARM.skyGradient} style={{ flex: 1 }}>
+        <StatusBar barStyle="dark-content" />
+        {/* Farm-style header */}
+        <View style={[styles.farmPlayHeader, { marginTop: 10 }]}>
+          <AnimatedPressable onPress={() => { playSound('tap'); setScreen('theme'); }}>
+            <View style={styles.farmCloseButton}>
+              <Ionicons name="close" size={22} color="#FFFFFF" />
+            </View>
           </AnimatedPressable>
-          <LevelProgressHeader
-            tier={currentLevel.tier}
-            levelNum={currentLevelIndex + 1}
-            totalLevels={releasedLevels.length}
-          />
+          <View style={styles.farmLevelBadge}>
+            <Text style={styles.farmLevelText}>Màn {currentLevelIndex + 1}</Text>
+          </View>
+          <View style={styles.farmHeaderSpacer} />
         </View>
-        <Text style={[styles.hintText, { marginBottom: 8 }]}>👀✨</Text>
+
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 16 }}>
           <View style={{ width: gridW, flexDirection: 'row', flexWrap: 'wrap', gap }}>
             {cards.map((card, i) => {
@@ -1096,6 +1086,10 @@ const MemoryGame = ({ playSound, onExit }) => {
             })}
           </View>
         </View>
+
+        {/* Grass decoration */}
+        <View style={styles.farmGrassBar} />
+
         <RewardPopup
           visible={showPopup}
           stars={popupStars}
@@ -1104,6 +1098,7 @@ const MemoryGame = ({ playSound, onExit }) => {
           onContinue={handleContinue}
           onExit={() => { setShowPopup(false); onExit(); }}
           playSound={playSound}
+          fontsLoaded={fontsLoaded}
         />
       </LinearGradient>
     );
@@ -1136,7 +1131,7 @@ const AnimalCard = ({ animal, isWrong, isCorrect, onPress, disabled }) => {
   );
 };
 
-const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }) => {
+const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit, fontsLoaded }) => {
   const levels = {
     easy: { name: 'Dễ', optionCount: 2, roundsToWin: 4 },
     medium: { name: 'Vừa', optionCount: 3, roundsToWin: 5 },
@@ -1385,6 +1380,7 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit }
           onContinue={() => { setShowPopup(false); startGame(selectedLevel); }}
           onExit={() => { setShowPopup(false); onExit(); }}
           playSound={playSound}
+          fontsLoaded={fontsLoaded}
         />
       </LinearGradient>
     );
@@ -1439,7 +1435,10 @@ const GardenDraggableItem = React.memo(function GardenDraggableItem({
           opacity: disabled ? 0.65 : 1 }
       ]}>
         <TouchableOpacity activeOpacity={0.9} onPress={handleTap} disabled={disabled || !allowTap}>
-          <LinearGradient colors={isDone ? ['#E6FAEA', '#DBF4E1'] : ['#FFFFFF', '#F8FFFA']} style={styles.gardenDragItem}>
+          <LinearGradient
+            colors={isDone ? [FARM.cardMatched, FARM.hillColor] : [FARM.cardFront, '#FFFEF5']}
+            style={[styles.gardenDragItem, isWrong && { borderColor: FARM.closeButtonBorder }]}
+          >
             <Text style={styles.gardenDragEmoji}>{item.emoji}</Text>
             {isDone && (
               <View style={styles.gardenCheckBadge}>
@@ -1527,8 +1526,11 @@ const GARDEN_LEVELS = [
   { id: 15, key: makeLevelKey('master', 3), tier: 'master', subLevel: 3, taskType: GARDEN_TASK_TYPE.FEED, targetCount: 9, distractorCount: 5, timeLimit: 18, maxMistakes: 2, tapAssist: false, sequence: true },
 ];
 
-const GardenHarvestGame = ({ playSound, onExit }) => {
+const GardenHarvestGame = ({ playSound, onExit, fontsLoaded }) => {
   const releasedLevels = useMemo(() => getReleasedLevelConfigs(GARDEN_LEVELS), []);
+  const F = fontsLoaded ? 'Nunito_900Black' : undefined;
+  const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
+  const F7 = fontsLoaded ? 'Nunito_700Bold' : undefined;
   const [screen, setScreen] = useState('play');
   const [levelIndex, setLevelIndex] = useState(0);
   const [playItems, setPlayItems] = useState([]);
@@ -1795,31 +1797,34 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
     const mistakesLeft = Math.max(0, currentLevel.maxMistakes - wrongPicks);
 
     return (
-      <LinearGradient colors={['#FACC15', '#22C55E']} style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
+      <LinearGradient colors={FARM.skyGradient} style={{ flex: 1 }}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.farmPlayHeader, { marginTop: 10 }]}>
+          <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
+            <View style={styles.farmCloseButton}>
+              <Ionicons name="close" size={22} color="#FFFFFF" />
+            </View>
           </AnimatedPressable>
-          <LevelProgressHeader
-            tier={currentLevel.tier}
-            levelNum={levelIndex + 1}
-            totalLevels={releasedLevels.length}
-          />
+          <View style={styles.farmLevelBadge}>
+            <Text style={[styles.farmLevelText, { fontFamily: F }]}>Màn {levelIndex + 1}</Text>
+          </View>
+          <View style={styles.farmHeaderSpacer} />
         </View>
 
         <View style={styles.gardenPlayWrap}>
           <View style={styles.gardenMissionCard}>
-            <Text style={styles.gardenMissionTitle}>{currentMeta.title} · {getTierLabel(currentLevel.tier)}</Text>
+            <Text style={[styles.gardenMissionTitle, { fontFamily: F }]}>
+              {currentMeta.title} · {getTierLabel(currentLevel.tier)}
+            </Text>
             <View style={styles.gardenMissionStatsRow}>
               <View style={styles.gardenMissionStatChip}>
-                <Text style={styles.gardenMissionStatText}>🎯 {taskLeft}</Text>
+                <Text style={[styles.gardenMissionStatText, { fontFamily: F8 }]}>🎯 {taskLeft}</Text>
               </View>
               <View style={styles.gardenMissionStatChip}>
-                <Text style={styles.gardenMissionStatText}>⏱️ {timeLeft}s</Text>
+                <Text style={[styles.gardenMissionStatText, { fontFamily: F8 }]}>⏱️ {timeLeft}s</Text>
               </View>
               <View style={styles.gardenMissionStatChip}>
-                <Text style={styles.gardenMissionStatText}>❤️ {mistakesLeft}</Text>
+                <Text style={[styles.gardenMissionStatText, { fontFamily: F8 }]}>❤️ {mistakesLeft}</Text>
               </View>
             </View>
             <View style={styles.gardenTargetPreviewCard}>
@@ -1827,18 +1832,18 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
                 <Text style={styles.gardenTargetPreviewEmoji}>{previewEmoji}</Text>
               </View>
             </View>
-            <Text style={styles.gardenMissionHint}>{currentMeta.actionHint}</Text>
+            <Text style={[styles.gardenMissionHint, { fontFamily: F8 }]}>{currentMeta.actionHint}</Text>
             {currentLevel.sequence && (
-              <Text style={styles.gardenMissionHint}>✨ Làm đúng theo thứ tự</Text>
+              <Text style={[styles.gardenMissionHint, { fontFamily: F8 }]}>✨ Làm đúng theo thứ tự</Text>
             )}
             {hintVisible && (
               <View style={styles.gardenHintBubble}>
-                <Text style={styles.gardenHintText}>Gợi ý: {currentMeta.actionHint}</Text>
+                <Text style={[styles.gardenHintText, { fontFamily: F7 }]}>Gợi ý: {currentMeta.actionHint}</Text>
               </View>
             )}
             {successToast ? (
               <View style={styles.gardenToast}>
-                <Text style={styles.gardenToastText}>{successToast}</Text>
+                <Text style={[styles.gardenToastText, { fontFamily: F8 }]}>{successToast}</Text>
               </View>
             ) : null}
           </View>
@@ -1847,8 +1852,8 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
             <View style={styles.gardenDragTaskWrap}>
               <View ref={targetRef} onLayout={refreshTargetRect} style={styles.gardenDropZone}>
                 <Text style={styles.gardenDropZoneIcon}>{currentMeta.icon}</Text>
-                <Text style={styles.gardenDropZoneLabel}>{currentMeta.targetLabel}</Text>
-                <Text style={styles.gardenDropZoneCounter}>
+                <Text style={[styles.gardenDropZoneLabel, { fontFamily: F }]}>{currentMeta.targetLabel}</Text>
+                <Text style={[styles.gardenDropZoneCounter, { fontFamily: F }]}>
                   {taskProgress}/{currentLevel.targetCount}
                 </Text>
               </View>
@@ -1881,8 +1886,14 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
                     activeOpacity={0.86}
                   >
                     <LinearGradient
-                      colors={isWrong ? ['#F6A2A0', '#F19492'] : item.done ? ['#E6FAEA', '#DBF4E1'] : ['#FFFFFF', '#F8FFFA']}
-                      style={styles.gardenHarvestItem}
+                      colors={
+                        isWrong
+                          ? [FARM.closeButtonBg, FARM.closeButtonBorder]
+                          : item.done
+                            ? [FARM.cardMatched, FARM.hillColor]
+                            : [FARM.cardFront, '#FFFEF5']
+                      }
+                      style={[styles.gardenHarvestItem, isWrong && { borderColor: FARM.closeButtonBorder }]}
                     >
                       <Text style={styles.gardenHarvestEmoji}>{item.emoji}</Text>
                       {item.done && (
@@ -1902,6 +1913,9 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
             </View>
           )}
         </View>
+
+        <View style={styles.farmGrassBar} />
+
         <RewardPopup
           visible={showPopup}
           stars={popupStars}
@@ -1910,6 +1924,7 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
           onContinue={handleContinue}
           onExit={() => { setShowPopup(false); onExit(); }}
           playSound={playSound}
+          fontsLoaded={fontsLoaded}
         />
       </LinearGradient>
     );
@@ -1920,13 +1935,16 @@ const GardenHarvestGame = ({ playSound, onExit }) => {
 // ============================================
 // RESTORED GAME: COUNTING QUIZ
 // ============================================
-const PuzzleGame = ({ playSound, onExit }) => {
+const PuzzleGame = ({ playSound, onExit, fontsLoaded }) => {
   const releasedLevels = useMemo(() => getReleasedLevelConfigs(PUZZLE_LEVELS), []);
   const puzzleThemeGradients = useMemo(() => ({
-    animals: ['#84CC16', '#16A34A'],
-    fruits: ['#22C55E', '#059669'],
-    vehicles: ['#10B981', '#0D9488'],
+    animals: ['#FB923C', '#FBBF24'],
+    fruits: ['#F472B6', '#FB923C'],
+    vehicles: ['#60A5FA', '#34D399'],
   }), []);
+  const F = fontsLoaded ? 'Nunito_900Black' : undefined;
+  const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
+  const F7 = fontsLoaded ? 'Nunito_700Bold' : undefined;
   const [screen, setScreen] = useState('theme');
   const [selectedTheme, setSelectedTheme] = useState(null);
   const [roundData, setRoundData] = useState(null);
@@ -2065,41 +2083,48 @@ const PuzzleGame = ({ playSound, onExit }) => {
 
   if (screen === 'theme') {
     return (
-      <LinearGradient colors={['#65A30D', '#15803D']} style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
-            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
+      <LinearGradient colors={FARM.skyGradient} style={{ flex: 1 }}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.header, { marginTop: 10, paddingVertical: 0 }]}>
+          <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
+            <View style={styles.farmCloseButton}>
+              <Ionicons name="close" size={22} color="#FFFFFF" />
+            </View>
           </AnimatedPressable>
-          <Text style={[styles.headerTitle, { color: '#F7FEEB', textShadowColor: 'rgba(20,56,19,0.3)', textShadowRadius: 3 }]}>🧮 Chủ đề</Text>
-          <View style={{ width: 70 }} />
+          <Text style={[styles.farmHeaderTitle, { fontFamily: F }]}>🧮 Chủ đề</Text>
+          <View style={{ width: 44 }} />
         </View>
 
-        <View style={styles.kidSelectIntroCard}>
-          <Text style={styles.kidSelectIntroTitle}>🧮 Đếm & chọn số</Text>
-          <Text style={styles.kidSelectIntroSub}>🎯 10 màn mở khóa</Text>
-        </View>
-
-        <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={{ flex: 1, width: '100%' }}
+          contentContainerStyle={[styles.kidSelectScrollContent, styles.farmThemeSelectScrollContent]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.farmIntroCard}>
+            <Text style={[styles.farmIntroTitle, { fontFamily: F }]}>Đếm & chọn số</Text>
+            <Text style={[styles.farmIntroSub, { fontFamily: F8 }]}>🎯 10 màn mở khóa</Text>
+          </View>
           {THEME_ORDER.map((key) => {
             const theme = themes[key];
             if (!theme) return null;
             return (
               <AnimatedPressable key={key}
                 onPress={() => { playSound('themeSelect'); startGame(key, 0); }}>
-                <LinearGradient colors={puzzleThemeGradients[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.kidThemeCard}>
-                  <View style={styles.kidThemeEmojiWrap}>
+                <LinearGradient colors={puzzleThemeGradients[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.farmThemeCard}>
+                  <View style={styles.farmThemeEmojiWrap}>
                     <Text style={styles.kidThemeEmoji}>{theme.emoji}</Text>
                   </View>
                   <View style={styles.kidThemeTextWrap}>
-                    <Text style={styles.kidThemeName}>{theme.name}</Text>
-                    <Text style={styles.kidThemeSub}>▶</Text>
+                    <Text style={[styles.farmThemeName, { fontFamily: F }]}>{theme.name}</Text>
+                    <Text style={[styles.farmThemeSub, { fontFamily: F8 }]}>CHƠI NGAY ▶</Text>
                   </View>
                 </LinearGradient>
               </AnimatedPressable>
             );
           })}
         </ScrollView>
+
+        <View style={styles.farmGrassBar} />
       </LinearGradient>
     );
   }
@@ -2116,24 +2141,25 @@ const PuzzleGame = ({ playSound, onExit }) => {
     const emojiSizeB = computeEmojiSizeForCard(roundData.secondCount, rightCountCardBox);
 
     return (
-      <LinearGradient colors={['#65A30D', '#15803D']} style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { marginTop: 44 }]}>
-          <AnimatedPressable style={styles.backButton} onPress={() => { playSound('tap'); setScreen('theme'); }}>
-            <Ionicons name="chevron-back" size={24} color="#6A66A8" />
+      <LinearGradient colors={FARM.skyGradient} style={{ flex: 1 }}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.farmPlayHeader, { marginTop: 10 }]}>
+          <AnimatedPressable onPress={() => { playSound('tap'); setScreen('theme'); }}>
+            <View style={styles.farmCloseButton}>
+              <Ionicons name="close" size={22} color="#FFFFFF" />
+            </View>
           </AnimatedPressable>
-          <LevelProgressHeader
-            tier={currentLevel.tier}
-            levelNum={currentLevelIndex + 1}
-            totalLevels={releasedLevels.length}
-          />
+          <View style={styles.farmLevelBadge}>
+            <Text style={[styles.farmLevelText, { fontFamily: F }]}>Màn {currentLevelIndex + 1}</Text>
+          </View>
+          <View style={styles.farmHeaderSpacer} />
         </View>
 
         <View style={styles.countPlayContent}>
           <View style={styles.countTopHalf}>
             <View style={styles.countQuestionCard}>
-              <Text style={styles.countQuestionTitle}>🧮 + 🧮 = ?</Text>
-              <Text style={[styles.countOptionsTitle, { color: '#047857', marginBottom: 10 }]}>
+              <Text style={[styles.countQuestionTitle, { fontFamily: F }]}>🧮 + 🧮 = ?</Text>
+              <Text style={[styles.countPlayMeta, { fontFamily: F7 }]}>
                 {getTierLabel(currentLevel.tier)} · Sai {wrongPicks}/{currentLevel.mistakeBudget}
               </Text>
               <View style={styles.countEquationWrap}>
@@ -2154,7 +2180,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
                     ))}
                   </View>
                 </View>
-                <Text style={styles.countMathSign}>＋</Text>
+                <Text style={[styles.countMathSign, { fontFamily: F }]}>＋</Text>
                 <View
                   style={styles.countItemCard}
                   onLayout={(e) => {
@@ -2173,8 +2199,8 @@ const PuzzleGame = ({ playSound, onExit }) => {
                   </View>
                 </View>
                 <View style={styles.countResultWrap}>
-                  <Text style={styles.countMathSign}>＝</Text>
-                  <Text style={styles.countResultText}>?</Text>
+                  <Text style={[styles.countMathSign, { fontFamily: F }]}>＝</Text>
+                  <Text style={[styles.countResultText, { fontFamily: F }]}>?</Text>
                 </View>
               </View>
             </View>
@@ -2182,7 +2208,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
 
           <View style={styles.countBottomHalf}>
             <View style={styles.countOptionsWrap}>
-              <Text style={styles.countOptionsTitle}>✅</Text>
+              <Text style={[styles.countOptionsTitle, { fontFamily: F }]}>Chọn đáp án</Text>
               <View style={styles.countOptionGrid}>
                 {roundData.options.map((option) => {
                   const isWrongSelected = selectedWrongOption === option;
@@ -2194,10 +2220,26 @@ const PuzzleGame = ({ playSound, onExit }) => {
                         isHinted && { transform: [{ scale: hintScale }, { translateY: hintLift }] },
                       ]}>
                         <LinearGradient
-                          colors={isWrongSelected ? ['#F6A2A0', '#F19492'] : ['#FFFFFF', '#F7FAFF']}
-                          style={[styles.countOptionButton, styles.countOptionButtonHalf, isHinted && { borderWidth: 3, borderColor: '#FFE38B' }]}
+                          colors={
+                            isWrongSelected
+                              ? [FARM.closeButtonBg, FARM.closeButtonBorder]
+                              : [FARM.cardFront, '#FFFEF5']
+                          }
+                          style={[
+                            styles.countOptionButton,
+                            styles.countOptionButtonHalf,
+                            isWrongSelected && { borderColor: FARM.closeButtonBorder },
+                            isHinted && !isWrongSelected && { borderWidth: 3, borderColor: FARM.cardHintBorder },
+                          ]}
                         >
-                          <Text style={[styles.countOptionText, isWrongSelected && { color: '#FFF' }]}>{option}</Text>
+                          <Text style={[
+                            styles.countOptionText,
+                            { fontFamily: F },
+                            isWrongSelected && { color: FARM.white },
+                          ]}
+                          >
+                            {option}
+                          </Text>
                         </LinearGradient>
                         {isHinted && (
                           <Animated.View
@@ -2221,6 +2263,8 @@ const PuzzleGame = ({ playSound, onExit }) => {
             </View>
           </View>
         </View>
+        <View style={styles.farmGrassBar} />
+
         <RewardPopup
           visible={showPopup}
           stars={popupStars}
@@ -2229,6 +2273,7 @@ const PuzzleGame = ({ playSound, onExit }) => {
           onContinue={handleContinue}
           onExit={() => { setShowPopup(false); onExit(); }}
           playSound={playSound}
+          fontsLoaded={fontsLoaded}
         />
       </LinearGradient>
     );
@@ -2240,22 +2285,22 @@ const PuzzleGame = ({ playSound, onExit }) => {
 // GAME 4: LEARN VIETNAMESE LETTERS (bảng chữ cái + minh hoạ + phát âm)
 // ============================================
 
-const LETTER_ACTION_GRADIENTS = [
-  ['#8B5CF6', '#EC4899'],
-  ['#F97316', '#FBBF24'],
-  ['#0EA5E9', '#14B8A6'],
-  ['#10B981', '#34D399'],
-  ['#D946EF', '#A855F7'],
-  ['#6366F1', '#818CF8'],
+// Letter game — nav card accents (warm, sky-friendly; same family as theme cards)
+const LETTER_NAV_GRADIENTS = [
+  ['#FB923C', '#FBBF24'],
+  ['#F472B6', '#FB923C'],
+  ['#60A5FA', '#34D399'],
 ];
 
-const LetterGame = ({ playSound, onExit }) => {
+const LetterGame = ({ playSound, onExit, fontsLoaded }) => {
   const [index, setIndex] = useState(0);
   const total = VIETNAMESE_ALPHABET.length;
   const entry = VIETNAMESE_ALPHABET[index];
-  const listenGradient = LETTER_ACTION_GRADIENTS[index % LETTER_ACTION_GRADIENTS.length];
-  const prevGradient = LETTER_ACTION_GRADIENTS[(index + 3) % LETTER_ACTION_GRADIENTS.length];
-  const nextGradient = LETTER_ACTION_GRADIENTS[(index + 1) % LETTER_ACTION_GRADIENTS.length];
+  const F = fontsLoaded ? 'Nunito_900Black' : undefined;
+  const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
+  const F7 = fontsLoaded ? 'Nunito_700Bold' : undefined;
+  const prevGradient = LETTER_NAV_GRADIENTS[(index + 2) % LETTER_NAV_GRADIENTS.length];
+  const nextGradient = LETTER_NAV_GRADIENTS[(index + 1) % LETTER_NAV_GRADIENTS.length];
 
   useEffect(() => () => { soundManager.unloadLetterSounds(); }, []);
 
@@ -2292,14 +2337,18 @@ const LetterGame = ({ playSound, onExit }) => {
   };
 
   return (
-    <LinearGradient colors={['#7C3AED', '#EC4899']} style={{ flex: 1 }}>
-      <StatusBar barStyle="light-content" />
-      <View style={[styles.header, { marginTop: 44 }]}>
-        <AnimatedPressable style={styles.backButton} onPress={() => { soundManager.stopLetterSound(); playSound('tap'); onExit(); }}>
-          <Ionicons name="chevron-back" size={24} color="#6A66A8" />
+    <LinearGradient colors={FARM.skyGradient} style={{ flex: 1 }}>
+      <StatusBar barStyle="dark-content" />
+      <View style={[styles.farmPlayHeader, { marginTop: 10 }]}>
+        <AnimatedPressable onPress={() => { soundManager.stopLetterSound(); playSound('tap'); onExit(); }}>
+          <View style={styles.farmCloseButton}>
+            <Ionicons name="close" size={22} color="#FFFFFF" />
+          </View>
         </AnimatedPressable>
-        <Text style={[styles.headerTitle, { color: '#FFF9F0', textShadowColor: 'rgba(57,8,89,0.35)', textShadowRadius: 3 }]}>🔤 Học chữ</Text>
-        <View style={{ width: 70 }} />
+        <View style={styles.farmLevelBadge}>
+          <Text style={[styles.farmLevelText, { fontFamily: F }]}>Chữ {index + 1}/{total}</Text>
+        </View>
+        <View style={styles.farmHeaderSpacer} />
       </View>
 
       <ScrollView
@@ -2307,60 +2356,68 @@ const LetterGame = ({ playSound, onExit }) => {
         contentContainerStyle={styles.letterLearnScroll}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.kidSelectIntroCard}>
-          <Text style={styles.kidSelectIntroTitle}>Học 29 chữ cái tiếng Việt</Text>
-          <Text style={styles.kidSelectIntroSub}>Chữ {index + 1}/{total} · 🖼️ Minh hoạ · 🔊 Phát âm</Text>
-        </View>
 
         <View style={styles.letterHeroCard}>
           <View style={styles.letterHeroIconRing}>
             <Icon value={entry.emoji} size={120} />
           </View>
-          <Text style={styles.letterHeroLetter}>{entry.letter}</Text>
-          <Text style={styles.letterHeroHint}>Ví dụ: {entry.word}</Text>
+          <Text style={[styles.letterHeroLetter, { fontFamily: F }]}>{entry.letter}</Text>
+          <Text style={[styles.letterHeroHint, { fontFamily: F7 }]}>Ví dụ: {entry.word}</Text>
         </View>
 
         <AnimatedPressable onPress={replay} style={{ width: '100%', marginBottom: 14 }}>
           <LinearGradient
-            colors={listenGradient}
+            colors={FARM.playButtonGradient}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
-            style={styles.letterListenCard}
+            style={[styles.letterListenCard, SHADOWS.button]}
           >
             <View style={styles.letterListenIconWrap}>
-              <Ionicons name="volume-high" size={34} color="#5B21B6" />
+              <Ionicons name="volume-high" size={34} color={FARM.playButtonText} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.letterListenTitle}>Nghe phát âm</Text>
-              <Text style={styles.letterListenSub}>Chạm để nghe lại</Text>
+              <Text style={[styles.letterListenTitle, { fontFamily: F }]}>Nghe phát âm</Text>
+              <Text style={[styles.letterListenSub, { fontFamily: F8 }]}>Chạm để nghe lại</Text>
             </View>
-            <Text style={styles.kidThemeSub}>▶</Text>
+            <Text style={[styles.letterListenPlayCue, { fontFamily: F8 }]}>▶</Text>
           </LinearGradient>
         </AnimatedPressable>
 
         <View style={styles.letterNavRow}>
-          <AnimatedPressable onPress={goPrev} style={{ flex: 1 }}>
-            <LinearGradient colors={prevGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.letterNavCard}>
+          <TouchableOpacity activeOpacity={0.92} onPress={goPrev} style={styles.letterNavHalf}>
+            <LinearGradient
+              colors={prevGradient}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={[styles.letterNavCard, SHADOWS.button, styles.letterNavCardFill]}
+            >
               <View style={styles.letterNavIconWrap}>
                 <Ionicons name="play-back" size={28} color="#FFFFFF" />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.letterNavTitle}>Chữ trước</Text>
+              <View style={styles.letterNavTitleWrap}>
+                <Text style={[styles.letterNavTitle, { fontFamily: F }]}>Chữ trước</Text>
               </View>
             </LinearGradient>
-          </AnimatedPressable>
-          <AnimatedPressable onPress={goNext} style={{ flex: 1 }}>
-            <LinearGradient colors={nextGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.letterNavCard}>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.92} onPress={goNext} style={styles.letterNavHalf}>
+            <LinearGradient
+              colors={nextGradient}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={[styles.letterNavCard, SHADOWS.button, styles.letterNavCardFill]}
+            >
               <View style={styles.letterNavIconWrap}>
                 <Ionicons name="play-forward" size={28} color="#FFFFFF" />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.letterNavTitle}>Chữ sau</Text>
+              <View style={styles.letterNavTitleWrap}>
+                <Text style={[styles.letterNavTitle, { fontFamily: F }]}>Chữ sau</Text>
               </View>
             </LinearGradient>
-          </AnimatedPressable>
+          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <View style={styles.farmGrassBar} />
     </LinearGradient>
   );
 };
@@ -2372,7 +2429,7 @@ export default function App() {
   const [screen, setScreen]           = useState('home');
   const [currentGame, setCurrentGame] = useState(null);
   const [audioReady, setAudioReady]   = useState(false);
-  const [musicEnabled, setMusicEnabled] = useState(false);
+  const [musicEnabled, setMusicEnabled] = useState(true);
   const floatAnim = useRef(new Animated.Value(0)).current;
   const bubblePulseA = useRef(new Animated.Value(0)).current;
   const bubblePulseB = useRef(new Animated.Value(0)).current;
@@ -2452,6 +2509,18 @@ export default function App() {
     await soundManager.setBackgroundEnabled(nextEnabled);
   };
 
+  const renderMusicToggle = (positionStyle) => (
+    <TouchableOpacity onPress={toggleMusic} style={positionStyle} activeOpacity={0.9}>
+      <View style={[styles.farmGearButton, !musicEnabled && styles.musicToggleDimmed]}>
+        <Ionicons
+          name={musicEnabled ? 'musical-notes' : 'volume-mute'}
+          size={24}
+          color={FARM.playButtonText}
+        />
+      </View>
+    </TouchableOpacity>
+  );
+
   const handleGameSelect = async (game) => {
     playSound('tap');
     setCurrentGame(game);
@@ -2464,8 +2533,8 @@ export default function App() {
 
   if (!audioReady) {
     return (
-      <LinearGradient colors={['#2563EB', '#C026D3']} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <StatusBar barStyle="light-content" />
+      <LinearGradient colors={FARM.skyGradient} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <StatusBar barStyle="dark-content" />
         <Text style={{ fontSize: 72 }}>🎵</Text>
         <Text style={styles.audioLoadingText}>Đang chuẩn bị nhạc nền...</Text>
       </LinearGradient>
@@ -2477,38 +2546,21 @@ export default function App() {
     if (currentGame === 'memory')   gameScreen = <MemoryGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
     if (currentGame === 'puzzle')   gameScreen = <PuzzleGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
     if (currentGame === 'garden')   gameScreen = <GardenHarvestGame  playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
-    if (currentGame === 'letter')   gameScreen = <LetterGame         playSound={playSound} onExit={handleExit} />;
+    if (currentGame === 'letter')   gameScreen = <LetterGame         playSound={playSound} onExit={handleExit} fontsLoaded={fontsLoaded} />;
     return (
       <View style={{ flex: 1 }}>
         {gameScreen}
-        <TouchableOpacity onPress={toggleMusic} style={styles.musicToggleGame} activeOpacity={0.9}>
-          <LinearGradient
-            colors={musicEnabled ? ['#ECFDF5', '#34D399'] : ['#FDF2F8', '#F472B6']}
-            style={styles.musicToggleButton}
-          >
-            <Text style={styles.musicToggleIcon}>{musicEnabled ? '🔊' : '🔇'}</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        {renderMusicToggle(styles.musicToggleGame)}
       </View>
     );
   }
 
   const F = fontsLoaded ? 'Nunito_900Black' : undefined;
   const F7 = fontsLoaded ? 'Nunito_700Bold' : undefined;
-  const F8 = fontsLoaded ? 'Nunito_800ExtraBold' : undefined;
 
   return (
-    <LinearGradient colors={['#2563EB', '#C026D3']} style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <TouchableOpacity onPress={toggleMusic} style={styles.musicToggleHome} activeOpacity={0.9}>
-        <LinearGradient
-          colors={musicEnabled ? ['#ECFDF5', '#34D399'] : ['#FDF2F8', '#F472B6']}
-          style={styles.musicToggleButton}
-        >
-          <Text style={styles.musicToggleIcon}>{musicEnabled ? '🔊' : '🔇'}</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-
+    <LinearGradient colors={FARM.skyGradient} style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       {/* Decorative circles */}
       <Animated.View style={[
         styles.bgBubbleOne,
@@ -2532,70 +2584,68 @@ export default function App() {
         },
       ]} />
 
-      <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ alignItems: 'center', paddingTop: FARM.headerContentGap, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Animated.Text style={{ fontSize: 88, marginTop: 24, marginBottom: 4, transform: [{ translateY: floatAnim }] }}>
-          🧸
+          🚜👨‍🌾
         </Animated.Text>
         <Text style={[styles.title, { fontFamily: F }]}>Bé Học Vui</Text>
-        <Text style={[styles.subtitle, { fontFamily: F7 }]}>🎮👇</Text>
 
         {/* Game buttons */}
         <View style={{ width: '100%', paddingHorizontal: 20, gap: 14, marginTop: 20 }}>
           <AnimatedPressable onPress={() => handleGameSelect('memory')}>
-            <LinearGradient colors={['#F97316', '#EC4899']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
-              <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🃏</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.gameButtonText, { fontFamily: F }]}>Tìm Cặp</Text>
-                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🧠✨</Text>
+            <LinearGradient colors={['#FB923C', '#FBBF24']} style={styles.farmThemeCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+              <View style={styles.farmThemeEmojiWrap}>
+                <Text style={styles.kidThemeEmoji}>{FARM.cardBackIcon}</Text>
               </View>
-              <View style={styles.gameButtonSparkle}><Text style={styles.gameButtonSparkleText}>✨</Text></View>
-              <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
+              <View style={styles.farmHomeGameTextWrap}>
+                <Text style={[styles.farmThemeName, styles.farmHomeGameTitle, { fontFamily: F }]}>Tìm Cặp</Text>
+              </View>
             </LinearGradient>
           </AnimatedPressable>
 
           <AnimatedPressable onPress={() => handleGameSelect('puzzle')}>
-            <LinearGradient colors={['#84CC16', '#059669']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
-              <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🧮</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.gameButtonText, { fontFamily: F }]}>Đếm Hình</Text>
-                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🧮✅</Text>
+            <LinearGradient colors={['#F472B6', '#FB923C']} style={styles.farmThemeCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+              <View style={styles.farmThemeEmojiWrap}>
+                <Text style={styles.kidThemeEmoji}>🧩</Text>
               </View>
-              <View style={styles.gameButtonSparkle}><Text style={styles.gameButtonSparkleText}>🌟</Text></View>
-              <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
+              <View style={styles.farmHomeGameTextWrap}>
+                <Text style={[styles.farmThemeName, styles.farmHomeGameTitle, { fontFamily: F }]}>Đếm Hình</Text>
+              </View>
             </LinearGradient>
           </AnimatedPressable>
 
           <AnimatedPressable onPress={() => handleGameSelect('garden')}>
-            <LinearGradient colors={['#FBBF24', '#EA580C']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
-              <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🌾</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.gameButtonText, { fontFamily: F }]}>Vườn Thu Hoạch</Text>
-                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>🌱🧺</Text>
+            <LinearGradient colors={['#FBBF24', '#FB923C']} style={styles.farmThemeCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+              <View style={styles.farmThemeEmojiWrap}>
+                <Text style={styles.kidThemeEmoji}>🌾</Text>
               </View>
-              <View style={styles.gameButtonSparkle}><Text style={styles.gameButtonSparkleText}>💫</Text></View>
-              <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
+              <View style={styles.farmHomeGameTextWrap}>
+                <Text style={[styles.farmThemeName, styles.farmHomeGameTitle, { fontFamily: F }]}>Vườn Thu Hoạch</Text>
+              </View>
             </LinearGradient>
           </AnimatedPressable>
 
           <AnimatedPressable onPress={() => handleGameSelect('letter')}>
-            <LinearGradient colors={['#7C3AED', '#EC4899']} style={styles.gameButtonCard} start={{x:0,y:0}} end={{x:1,y:1}}>
-              <View style={styles.gameButtonCardIcon}><Text style={{ fontSize: 46 }}>🔤</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.gameButtonText, { fontFamily: F }]}>Học Chữ Cái</Text>
-                <Text style={[styles.gameButtonSubText, { fontFamily: F7 }]}>29 chữ · Hình · Phát âm</Text>
+            <LinearGradient colors={['#60A5FA', '#34D399']} style={styles.farmThemeCard} start={{x:0,y:0}} end={{x:1,y:1}}>
+              <View style={styles.farmThemeEmojiWrap}>
+                <Text style={styles.kidThemeEmoji}>📖</Text>
               </View>
-              <View style={styles.gameButtonArrowBadge}><Text style={styles.gameButtonArrow}>▶</Text></View>
+              <View style={styles.farmHomeGameTextWrap}>
+                <Text style={[styles.farmThemeName, styles.farmHomeGameTitle, { fontFamily: F }]}>Học Chữ Cái</Text>
+              </View>
             </LinearGradient>
           </AnimatedPressable>
 
         </View>
 
         {/* Footer credit */}
-        <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 28, fontFamily: F7 }}>
+        <Text style={{ color: FARM.bodyText, fontSize: 11, marginTop: 28, fontFamily: F7, opacity: 0.55 }}>
           Music: Kevin MacLeod · Sounds: Kenney.nl (CC0)
         </Text>
       </ScrollView>
+      {renderMusicToggle(styles.musicToggleHome)}
+      <View style={styles.farmGrassBar} />
     </LinearGradient>
   );
 }
@@ -2613,18 +2663,18 @@ const styles = StyleSheet.create({
   },
   bgBubbleTwo: {
     position: 'absolute', width: 190, height: 190, borderRadius: 95,
-    backgroundColor: 'rgba(244,114,182,0.38)', bottom: 60, left: -70,
+    backgroundColor: 'rgba(250,204,21,0.32)', bottom: 60, left: -70,
   },
   bgBubbleThree: {
     position: 'absolute', width: 100, height: 100, borderRadius: 50,
     backgroundColor: 'rgba(56,189,248,0.45)', top: 220, left: 30,
   },
-  title:    { fontSize: 42, fontWeight: '900', color: 'white', textAlign: 'center',
-              textShadowColor: 'rgba(36,5,120,0.44)', textShadowOffset: {width:0,height:3}, textShadowRadius: 8 },
-  subtitle: { fontSize: 19, color: 'rgba(255,255,255,0.9)', marginTop: 6, textAlign: 'center' },
+  title:    { fontSize: 42, fontWeight: '900', color: FARM.titleColor, textAlign: 'center',
+              textShadowColor: 'rgba(0,0,0,0.12)', textShadowOffset: {width:0,height:2}, textShadowRadius: 4 },
+  subtitle: { fontSize: 19, color: FARM.subtitleColor, marginTop: 6, textAlign: 'center' },
   audioLoadingText: {
     marginTop: 10,
-    color: 'white',
+    color: FARM.titleColor,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -2632,65 +2682,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 58,
     right: 16,
-    zIndex: 20,
+    zIndex: 200,
+    elevation: 24,
   },
   musicToggleGame: {
     position: 'absolute',
     top: 10,
     right: 16,
-    zIndex: 50,
+    zIndex: 200,
+    elevation: 24,
   },
-  musicToggleButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.8)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#41258A',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.32,
-    shadowRadius: 8,
+  musicToggleDimmed: {
+    opacity: 0.68,
   },
-  musicToggleIcon: {
-    fontSize: 27,
-  },
-  // ── Game buttons (home screen) ──
-  gameButtonCard: {
-    borderRadius: 24, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.46)',
-    elevation: 8,
-    shadowColor: '#20084B', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.36, shadowRadius: 12,
-  },
-  gameButtonCardIcon: {
-    width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.34)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.62)',
-  },
-  gameButtonText:    { color: 'white', fontSize: 25, fontWeight: '900' },
-  gameButtonSubText: { color: 'rgba(255,255,255,0.95)', fontSize: 18, marginTop: 2, fontWeight: '800' },
-  gameButtonArrowBadge: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.36)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  gameButtonSparkle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.64)',
-  },
-  gameButtonSparkleText: {
-    fontSize: 14,
-  },
-  gameButtonArrow: { color: 'white', fontSize: 16, fontWeight: '900' },
   // ── Big action button (win screen etc.) ──
   bigButton: {
     paddingVertical: 16, paddingHorizontal: 32,
@@ -2702,7 +2706,7 @@ const styles = StyleSheet.create({
   bigButtonText: { color: 'white', fontSize: 20, fontWeight: '900', letterSpacing: 0.4 },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    width: '100%', paddingHorizontal: 16, paddingVertical: 10, marginBottom: 4, zIndex: 2,
+    width: '100%', paddingHorizontal: 16, paddingVertical: 10, marginBottom: FARM.headerContentGap, zIndex: 2,
   },
   backButton: {
     backgroundColor: '#FFFFFF',
@@ -2727,97 +2731,65 @@ const styles = StyleSheet.create({
     borderColor: '#FBBF24',
   },
   statPillText: { fontSize: 14, fontWeight: '800', color: '#C2410C' },
-  levelHeaderCard: {
-    minWidth: 220,
-    maxWidth: 270,
-    backgroundColor: 'rgba(255,255,255,0.99)',
-    borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: '#FDE047',
-    elevation: 4,
-  },
-  levelHeaderTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  levelHeaderTierIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#DCFCE7',
-  },
-  levelHeaderTierIcon: {
-    fontSize: 20,
-  },
-  levelHeaderValueWrap: {
-    flex: 1,
-    marginLeft: 8,
-  },
-  levelHeaderValueMain: {
-    color: '#047857',
-    fontSize: 22,
-    lineHeight: 24,
-    fontWeight: '900',
-  },
-  levelHeaderValueSub: {
-    marginTop: 1,
-    color: '#15803D',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  levelHeaderBarTrack: {
-    marginTop: 8,
-    height: 12,
-    borderRadius: 999,
-    overflow: 'hidden',
-    backgroundColor: '#BBF7D0',
-  },
-  levelHeaderBarFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: '#16A34A',
-    justifyContent: 'center',
-  },
-  levelHeaderProgressGlow: {
-    alignSelf: 'flex-end',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#FEF08A',
-    marginRight: -1,
-  },
   headerTitle: { color: '#FFFFFF', fontSize: 23, fontWeight: '900',
     textShadowColor: 'rgba(0,0,0,0.28)', textShadowRadius: 4 },
   // ── Reward popup ──
   popupOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',
+    flex: 1,
+    backgroundColor: 'rgba(27, 79, 139, 0.42)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'visible',
+  },
+  popupCardShell: {
+    width: '84%',
+    maxWidth: 400,
+    position: 'relative',
+    alignItems: 'stretch',
+    overflow: 'visible',
+    zIndex: 1,
   },
   popupCard: {
-    backgroundColor: '#FFF', borderRadius: 28, padding: 28, width: '84%', alignItems: 'center',
-    elevation: 20, shadowColor: '#000', shadowOpacity: 0.3, shadowOffset: { width: 0, height: 8 }, shadowRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 28,
+    padding: 28,
+    width: '100%',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: FARM.cardFrontBorder,
+    ...SHADOWS.button,
+    zIndex: 0,
+    elevation: 8,
   },
-  popupCloseBtn: {
-    position: 'absolute', top: 14, right: 14, width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#FFEEEE', justifyContent: 'center', alignItems: 'center', zIndex: 10,
+  popupCloseWrap: {
+    position: 'absolute',
+    top: -16,
+    right: -10,
+    zIndex: 100,
+    elevation: 24,
   },
-  popupCloseBtnText: { fontSize: 16, color: '#F19492', fontWeight: '700' },
-  popupPraiseText: { fontSize: 30, fontWeight: '900', color: '#333', marginTop: 8, textAlign: 'center' },
+  popupPraiseText: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: FARM.titleColor,
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+  },
+  popupLevelBadge: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 22,
+    borderWidth: 2,
+    borderColor: FARM.cardBackBorder,
+    ...SHADOWS.header,
+  },
   popupLevelText: {
-    fontSize: 29,
-    color: '#0F766E',
-    marginBottom: 4,
+    fontSize: 18,
+    color: FARM.headerTitleColor,
     fontWeight: '900',
     letterSpacing: 0.3,
-    backgroundColor: '#ECFDF5',
-    borderRadius: 14,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
   },
 
   // ── Win screen ──
@@ -2831,22 +2803,18 @@ const styles = StyleSheet.create({
   winSubtitle:  { fontSize: 16, color: '#475569', textAlign: 'center', fontWeight: '700' },
   winButton: {
     borderRadius: 28,
-    minHeight: 62,
+    minHeight: 56,
     width: '100%',
     paddingHorizontal: 22,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.23,
-    shadowRadius: 7,
   },
   winButtonText: {
-    color: 'white',
-    fontSize: 25,
+    color: FARM.playButtonText,
+    fontSize: 18,
     fontWeight: '900',
-    letterSpacing: 0.2,
+    letterSpacing: 0.5,
     textAlign: 'center',
     width: '100%',
   },
@@ -2908,6 +2876,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 24,
     gap: 12,
+  },
+  /** Theme pick screens: vertically center intro + cards between header and grass. */
+  farmThemeSelectScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   kidThemeCard: {
     borderRadius: 24,
@@ -3201,21 +3174,22 @@ const styles = StyleSheet.create({
   gardenPlayWrap: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingBottom: 18,
+    paddingBottom: 12,
     justifyContent: 'center',
   },
   gardenMissionCard: {
     marginTop: 4,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: FARM.cardFront,
     borderRadius: 22,
     paddingVertical: 16,
     paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: '#E5F8E9',
+    borderWidth: 2,
+    borderColor: FARM.cardFrontBorder,
+    ...SHADOWS.card,
   },
   gardenMissionTitle: {
-    color: '#047857',
-    fontSize: 28,
+    color: FARM.headerTitleColor,
+    fontSize: 22,
     fontWeight: '900',
     textAlign: 'center',
   },
@@ -3226,29 +3200,29 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   gardenMissionStatChip: {
-    backgroundColor: '#F0FAF2',
+    backgroundColor: FARM.cardMatched,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#D0EBD6',
+    borderWidth: 2,
+    borderColor: FARM.cardMatchedBorder,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   gardenMissionStatText: {
-    color: '#15803D',
-    fontSize: 15,
+    color: FARM.subtitleColor,
+    fontSize: 14,
     fontWeight: '900',
   },
   gardenMissionSub: {
     marginTop: 4,
-    color: '#166534',
+    color: FARM.subtitleColor,
     fontSize: 15,
     fontWeight: '800',
     textAlign: 'center',
   },
   gardenMissionHint: {
     marginTop: 6,
-    color: '#15803D',
-    fontSize: 17,
+    color: FARM.subtitleColor,
+    fontSize: 16,
     fontWeight: '800',
     textAlign: 'center',
   },
@@ -3258,15 +3232,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 260,
     borderRadius: 18,
-    backgroundColor: '#F6FFF8',
+    backgroundColor: 'rgba(255,255,255,0.65)',
     borderWidth: 2,
-    borderColor: '#D4F0DB',
+    borderColor: FARM.cardMatchedBorder,
     paddingVertical: 10,
     paddingHorizontal: 10,
     alignItems: 'center',
   },
   gardenTargetPreviewLabel: {
-    color: '#15803D',
+    color: FARM.subtitleColor,
     fontSize: 14,
     fontWeight: '800',
   },
@@ -3275,11 +3249,11 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 20,
-    backgroundColor: 'white',
+    backgroundColor: FARM.cardFront,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#E4F4E7',
+    borderColor: FARM.cardFrontBorder,
   },
   gardenTargetPreviewEmoji: {
     fontSize: 62,
@@ -3287,7 +3261,7 @@ const styles = StyleSheet.create({
   },
   gardenTargetPreviewName: {
     marginTop: 6,
-    color: '#047857',
+    color: FARM.titleColor,
     fontSize: 20,
     fontWeight: '900',
     textAlign: 'center',
@@ -3295,30 +3269,32 @@ const styles = StyleSheet.create({
   gardenHintBubble: {
     marginTop: 10,
     alignSelf: 'center',
-    backgroundColor: '#FFF9DF',
+    backgroundColor: 'rgba(255, 249, 223, 0.95)',
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#F6E3A6',
+    borderWidth: 2,
+    borderColor: FARM.cardHintBorder,
+    ...SHADOWS.header,
   },
   gardenHintText: {
-    color: '#C2A775',
+    color: FARM.subtitleColor,
     fontSize: 13,
     fontWeight: '800',
   },
   gardenToast: {
     marginTop: 10,
     alignSelf: 'center',
-    backgroundColor: '#E5FAEA',
+    backgroundColor: FARM.cardMatched,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#B3E5C1',
+    borderWidth: 2,
+    borderColor: FARM.cardMatchedBorder,
+    ...SHADOWS.header,
   },
   gardenToastText: {
-    color: '#86B791',
+    color: FARM.bodyText,
     fontSize: 14,
     fontWeight: '900',
   },
@@ -3327,27 +3303,28 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   gardenDropZone: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(255,255,255,0.88)',
     borderRadius: 20,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: '#B5E2C0',
+    borderColor: FARM.grassMid,
     minHeight: 182,
     alignItems: 'center',
     justifyContent: 'center',
+    ...SHADOWS.header,
   },
   gardenDropZoneIcon: {
     fontSize: 56,
   },
   gardenDropZoneLabel: {
     marginTop: 8,
-    color: '#166534',
+    color: FARM.titleColor,
     fontSize: 16,
     fontWeight: '900',
   },
   gardenDropZoneCounter: {
     marginTop: 5,
-    color: '#047857',
+    color: FARM.headerTitleColor,
     fontSize: 22,
     fontWeight: '900',
   },
@@ -3360,11 +3337,7 @@ const styles = StyleSheet.create({
   },
   gardenDragWrap: {
     borderRadius: 14,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.16,
-    shadowRadius: 5,
+    ...SHADOWS.button,
   },
   gardenDragItem: {
     width: 98,
@@ -3373,6 +3346,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: FARM.cardFrontBorder,
   },
   gardenDragEmoji: {
     fontSize: 52,
@@ -3392,12 +3367,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: '#E6F6E9',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 4,
+    borderColor: FARM.cardFrontBorder,
+    ...SHADOWS.button,
   },
   gardenHarvestEmoji: {
     fontSize: 56,
@@ -3409,12 +3380,14 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#18C66A',
+    backgroundColor: FARM.grassDark,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: FARM.grassMid,
   },
   gardenCheckBadgeText: {
-    color: 'white',
+    color: FARM.white,
     fontSize: 18,
     fontWeight: '900',
     lineHeight: 18,
@@ -3427,24 +3400,25 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(229,57,53,0.25)',
+    backgroundColor: 'rgba(239, 68, 68, 0.22)',
   },
   gardenWrongMarkText: {
-    color: '#E08B8B',
+    color: FARM.closeButtonBorder,
     fontSize: 52,
     fontWeight: '900',
-    textShadowColor: 'rgba(255,255,255,0.4)',
+    textShadowColor: 'rgba(255,255,255,0.45)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   countQuestionCard: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.99)',
+    backgroundColor: FARM.cardFront,
     borderRadius: 22,
     paddingVertical: 18,
     paddingHorizontal: 14,
     borderWidth: 2,
-    borderColor: '#C9EE86',
+    borderColor: FARM.cardFrontBorder,
+    ...SHADOWS.card,
   },
   countPlayContent: {
     flex: 1,
@@ -3462,11 +3436,18 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   countQuestionTitle: {
-    color: '#047857',
-    fontSize: 30,
+    color: FARM.headerTitleColor,
+    fontSize: 26,
     fontWeight: '900',
     textAlign: 'center',
-    marginBottom: 14,
+    marginBottom: 8,
+  },
+  countPlayMeta: {
+    color: FARM.subtitleColor,
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 10,
   },
   countEquationWrap: {
     flex: 1,
@@ -3477,10 +3458,10 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   countItemCard: {
-    backgroundColor: '#ECFCCB',
+    backgroundColor: FARM.cardMatched,
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: '#84CC16',
+    borderColor: FARM.cardMatchedBorder,
     flex: 1,
     minHeight: 0,
     maxHeight: '100%',
@@ -3491,6 +3472,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     overflow: 'hidden',
+    ...SHADOWS.card,
   },
   countItemNumber: {
     color: '#047857',
@@ -3514,8 +3496,8 @@ const styles = StyleSheet.create({
     lineHeight: 46,
   },
   countMathSign: {
-    color: '#047857',
-    fontSize: 42,
+    color: FARM.headerTitleColor,
+    fontSize: 40,
     fontWeight: '900',
     alignSelf: 'center',
     textAlignVertical: 'center',
@@ -3529,25 +3511,26 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   countResultText: {
-    color: '#047857',
-    fontSize: 54,
+    color: FARM.headerTitleColor,
+    fontSize: 52,
     fontWeight: '900',
-    lineHeight: 58,
+    lineHeight: 56,
     marginTop: -4,
   },
   countOptionsWrap: {
     flex: 1,
-    backgroundColor: 'rgba(22, 163, 74, 0.22)',
+    backgroundColor: 'rgba(255,255,255,0.82)',
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(250, 204, 21, 0.75)',
+    borderWidth: 2,
+    borderColor: FARM.cardFrontBorder,
     paddingVertical: 12,
     paddingHorizontal: 10,
     overflow: 'hidden',
+    ...SHADOWS.header,
   },
   countOptionsTitle: {
-    color: '#F8FFDF',
-    fontSize: 24,
+    color: FARM.titleColor,
+    fontSize: 18,
     fontWeight: '900',
     textAlign: 'center',
     marginBottom: 10,
@@ -3564,21 +3547,19 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
+    borderWidth: 2,
+    borderColor: FARM.cardFrontBorder,
+    ...SHADOWS.button,
   },
   countOptionButtonHalf: {
     width: '47%',
     minWidth: 110,
   },
   countOptionText: {
-    color: '#047857',
-    fontSize: 40,
+    color: FARM.playButtonText,
+    fontSize: 38,
     fontWeight: '900',
-    lineHeight: 44,
+    lineHeight: 42,
   },
   animalPlayContent: {
     flex: 1,
@@ -3758,46 +3739,42 @@ const styles = StyleSheet.create({
   letterLearnScroll: {
     paddingHorizontal: 16,
     paddingBottom: 28,
-    paddingTop: 4,
+    paddingTop: 8,
   },
   letterHeroCard: {
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: FARM.cardFront,
     borderRadius: 28,
     paddingVertical: 28,
     paddingHorizontal: 20,
     alignItems: 'center',
     marginBottom: 16,
     width: '100%',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.22,
-    shadowOffset: { width: 0, height: 5 },
-    shadowRadius: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.65)',
+    borderWidth: 2,
+    borderColor: FARM.cardFrontBorder,
+    ...SHADOWS.card,
   },
   letterHeroIconRing: {
     width: 148,
     height: 148,
     borderRadius: 74,
-    backgroundColor: '#F5F3FF',
+    backgroundColor: FARM.cardMatched,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#E9D5FF',
+    borderColor: FARM.cardMatchedBorder,
     marginBottom: 14,
   },
   letterHeroLetter: {
     fontSize: 72,
     fontWeight: '900',
-    color: '#5B21B6',
+    color: FARM.headerTitleColor,
     letterSpacing: 2,
   },
   letterHeroHint: {
     marginTop: 8,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#4B5563',
+    color: FARM.subtitleColor,
     textAlign: 'center',
   },
   letterListenCard: {
@@ -3808,42 +3785,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.27,
-    shadowRadius: 11,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.45)',
+    borderWidth: 2,
+    borderColor: FARM.settingsBorderColor,
   },
   letterListenIconWrap: {
     width: 56,
     height: 56,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(255,255,255,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
+    borderColor: 'rgba(255,255,255,0.75)',
   },
   letterListenTitle: {
-    color: 'white',
-    fontSize: 24,
+    color: FARM.playButtonText,
+    fontSize: 22,
     fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.28)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   letterListenSub: {
     marginTop: 2,
-    color: '#FFFDEB',
-    fontSize: 16,
+    color: FARM.playButtonText,
+    fontSize: 15,
     fontWeight: '800',
+    opacity: 0.92,
+  },
+  letterListenPlayCue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: FARM.playButtonText,
+    opacity: 0.85,
   },
   letterNavRow: {
     flexDirection: 'row',
     gap: 12,
     width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+  },
+  letterNavHalf: {
+    flex: 1,
+    minWidth: 0,
+  },
+  letterNavCardFill: {
+    width: '100%',
+  },
+  letterNavTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
   },
   letterNavCard: {
     borderRadius: 22,
@@ -3853,13 +3843,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    elevation: 7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.24,
-    shadowRadius: 9,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.42)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
   letterNavIconWrap: {
     width: 44,
@@ -3878,5 +3863,143 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.25)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+
+  // ── Farm Theme (Tìm Cặp / Memory game) ──
+  farmCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: FARM.closeButtonBg,
+    borderWidth: 2,
+    borderColor: FARM.closeButtonBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.header,
+  },
+  farmGearButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: FARM.settingsButtonBg,
+    borderWidth: 2,
+    borderColor: FARM.settingsBorderColor,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.header,
+  },
+  farmHeaderSpacer: {
+    width: 44,
+    height: 44,
+  },
+  farmHeaderTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: FARM.headerTitleColor,
+    textShadowColor: 'rgba(0,0,0,0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  farmPlayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 0,
+    marginBottom: FARM.headerContentGap,
+    zIndex: 2,
+  },
+  farmLevelBadge: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderWidth: 2,
+    borderColor: FARM.cardBackBorder,
+    ...SHADOWS.header,
+  },
+  farmLevelText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: FARM.headerTitleColor,
+  },
+  farmIntroCard: {
+    marginHorizontal: 20,
+    marginTop: 0,
+    marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: FARM.cardFrontBorder,
+    ...SHADOWS.header,
+  },
+  farmIntroTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: FARM.titleColor,
+  },
+  farmIntroSub: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: FARM.subtitleColor,
+    marginTop: 4,
+  },
+  farmThemeCard: {
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.5)',
+    ...SHADOWS.button,
+  },
+  /** Home minigame row: title only, vertically centered beside emoji */
+  farmHomeGameTextWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  farmHomeGameTitle: {
+    width: '100%',
+    textAlign: 'left',
+  },
+  farmThemeEmojiWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.6)',
+  },
+  farmThemeName: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  farmThemeSub: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 2,
+    letterSpacing: 0.5,
+  },
+  farmGrassBar: {
+    marginTop: FARM.contentGapAboveGrass,
+    height: 40,
+    backgroundColor: FARM.grassMid,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 3,
+    borderColor: FARM.grassDark,
   },
 });
