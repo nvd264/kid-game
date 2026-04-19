@@ -1,127 +1,228 @@
-╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
- Plan: Make Garden Harvest Game More Engaging for Kids                                                                                              
-                                                                                                                                                
-Context                                                                                                     
+# Plan: Make Garden Harvest Game More Engaging for Kids
 
-ThecurrentVườnThuHoạchgameisanopen-endedsandboxwithnocleargoals,notimepressure,andnofailurestate.Kidscanplayindefinitely
-withnosenseofaccomplishment.Thewincondition(unlockall35plotsANDemptythem)istoolongandabstractforages3–7.Thisplanaddsa
-round-basedgoalsystem,goldencropsforsurprise/delight,andmilestonecelebrationstocreatesatisfyingshort-sessionarcs.
+## Context
 
----
-CriticalFile
+The current **Vườn Thu Hoạch** game is an open-ended sandbox with:
 
-/home/dong/Sites/kid-game/games/GardenHarvestGame.js—allchangesarehere.
+* no clear goals
+* no time pressure
+* no failure state
 
-Reference-only(noedits):
--/home/dong/Sites/kid-game/shared/components.js—ConfettiParticlepatterntoclone
--/home/dong/Sites/kid-game/shared/constants.js—CONFETTI_EMOJISarray
--/home/dong/Sites/kid-game/theme.js—FARM.cardBack(#FBBF24)forgoldenborder
+Kids can play indefinitely without a sense of accomplishment.
 
----
-WhattoSkip
+The current win condition:
 
-Pestvisitors—requiressplittingtheoverlayPanResponderlayer,highest-riskchangeformodestengagementgain.Defer.
+> Unlock all 35 plots AND empty them
 
----
-ImplementationSteps
+→ quá dài và trừu tượng cho trẻ 3–7 tuổi.
 
-Step1—Removestalewincondition
+### Mục tiêu cải tiến
 
-DeletetheuseEffectatlines~304–309thatfireswhenall35plotsareunlockedandempty.Thisfiresincorrectlyalongsidethenewroundsystem.
+* Thêm **round-based goals**
+* Thêm **golden crops (yếu tố bất ngờ)**
+* Thêm **milestone celebration**
 
-Step2—Round/Goalsystem
+→ tạo loop chơi ngắn, rõ ràng, gây “đã” hơn.
 
-Newstate:
-const[round,setRound]=useState(1);
-const[roundGoal,setRoundGoal]=useState(3);//startsat3,max10
-const[roundHarvested,setRoundHarvested]=useState(0);
-const[roundWinVisible,setRoundWinVisible]=useState(false);
-constgoalBarAnim=useRef(newAnimated.Value(0)).current;
+---
 
-Goalcurve:Math.min(3+round,10)—Day1=3harvests,Day7+=10harvests.
+## Critical File
 
-InhandleHarvest:AfterincrementingtotalHarvested,alsoincrementroundHarvested.WhenroundHarvested+1>=roundGoal,callplaySound('win')
-andsetRoundWinVisible(true).
+/home/dong/Sites/kid-game/games/GardenHarvestGame.js
 
-Progressbarindock:Replacethebasketcounterwithagoalrow:
--Left:🌾Ngày{round}
--Center:animatedfillbar(goalBarAnimdrivenbyuseEffectonroundHarvested/roundGoal—useNativeDriver:falserequiredforwidth)
--Right:🧺{roundHarvested}/{roundGoal}
+👉 Tất cả thay đổi nằm ở đây
 
-Round-completemodal:MirrortheexistinggardenWinModalpattern.On"Ngàymới!▶"press:
--setRound(r=>r+1)
--setRoundGoal(Math.min(3+round+1,10))
--setRoundHarvested(0)
--ResetallplotstoemptyviasetPlots(...)
--setRoundWinVisible(false)
+### Reference (không sửa)
 
-IncludeconfettiburstusingConfettiParticle(alreadyimportedinshared/components.js—importdirectlyorclonetheanimationpatternwith12
-Animated.Values).
+/home/dong/Sites/kid-game/shared/components.js   (ConfettiParticle)
+/home/dong/Sites/kid-game/shared/constants.js    (CONFETTI_EMOJIS)
+/home/dong/Sites/kid-game/theme.js               (FARM.cardBack #FBBF24)
 
-Step3—GoldenCrops
+---
 
-InhandlePlant:AftercallingrandomGardenCrop(),tag:isGolden:Math.random()<0.125(≈1in8crops).
+## What to Skip
 
-InrenderGardenCell:Whenplot.state==='ripe'&&plot.crop?.isGolden:
--Addgoldenborder:borderColor:'#FBBF24',borderWidth:3
--Driveaslowpulseloopontheplot'sexistingtoolFlashAnimated.Value:
-Animated.loop(Animated.sequence([
-Animated.timing(anim.toolFlash,{toValue:1.12,duration:600,useNativeDriver:true}),
-Animated.timing(anim.toolFlash,{toValue:1.0,duration:600,useNativeDriver:true}),
-])).start();
+**Pest visitors**
+→ cần refactor PanResponder overlay
+→ risk cao, gain thấp
 
-InhandleHarvest:Checkplot.crop?.isGolden:
--Playcombosoundinsteadofmatch
--Add+2toroundHarvestedinsteadof+1
--Showafloating+2textoverlay:oneAnimated.Value(opacity+translateY)viaAnimated.parallelover800ms,positionedabovethebasket
+👉 **Bỏ qua**
 
-Step4—MilestoneCelebrations
+---
 
-Constants:
-constHARVEST_MILESTONES=[5,10,20,35,50];
+## Implementation Steps
 
-Newstate/refs:
-const[milestoneVisible,setMilestoneVisible]=useState(false);
-const[activeMilestone,setActiveMilestone]=useState(null);
-constmilestonesSeenRef=useRef(newSet());
+### Step 1 — Remove old win condition
 
-InhandleHarvest:AfterupdatingtotalHarvested,checkifnewtotalisinHARVEST_MILESTONESandnotyetseen→markseen,setactiveMilestone,
-setMilestoneVisible(true),playstar1/star2/star3staggered.
+Xóa useEffect (~line 304–309) xử lý:
+"all 35 plots unlocked + empty"
 
-Milestonemodal:Localmini-modal(notRewardPopup)with:
--Confettiparticles(clonepatternfromConfettiParticleinshared/components.js,12particles)
--3starscales(springanimations,staggered150msapart)
--Text:"Béthuhoạch{activeMilestone}quảrồi!🌟"
--Button:"Tiếptục"→setMilestoneVisible(false)
+👉 vì sẽ conflict với round system mới
 
----
-NewStateSummary
+---
 
-┌──────────────────┬────────────────┬───────────────────────────────────┐
-│State│Type│Purpose│
-├──────────────────┼────────────────┼───────────────────────────────────┤
-│round│number│Currentdaynumber│
-├──────────────────┼────────────────┼───────────────────────────────────┤
-│roundGoal│number│Harvestsneeded(3+round,max10)│
-├──────────────────┼────────────────┼───────────────────────────────────┤
-│roundHarvested│number│Harveststhisround│
-├──────────────────┼────────────────┼───────────────────────────────────┤
-│roundWinVisible│bool│Round-completemodal│
-├──────────────────┼────────────────┼───────────────────────────────────┤
-│milestoneVisible│bool│Milestonecelebrationmodal│
-├──────────────────┼────────────────┼───────────────────────────────────┤
-│activeMilestone│number|null│Whichmilestonefired│
-├──────────────────┼────────────────┼───────────────────────────────────┤
-│goalBarAnim│Animated.Value│Progressbarfillwidth│
-└──────────────────┴────────────────┴───────────────────────────────────┘
+### Step 2 — Round / Goal System
 
----
-Verification
+#### State
 
-1.Startthegame—dockshouldshow🌾Ngày1and🧺0/3
-2.Harvest3crops→round-completemodalfireswithconfetti,winsound
-3.Press"Ngàymới!"→Day2starts,goalresetsto0/4
-4.Plantuntilagoldencropappears(≈1in8)→sparklepulsewhenripe
-5.Harvestthegoldencrop→combosound,+2floattext,progressbarjumps2
-6.Harvest5totalcrops→milestonemodalfires:"Béthuhoạch5quảrồi!🌟"
-7.Checkthattheold"all35plotsunlocked+empty"winconditiondoesNOTfire
+const [round, setRound] = useState(1);
+const [roundGoal, setRoundGoal] = useState(3);
+const [roundHarvested, setRoundHarvested] = useState(0);
+const [roundWinVisible, setRoundWinVisible] = useState(false);
+const goalBarAnim = useRef(new Animated.Value(0)).current;
+
+#### Goal scaling
+
+Math.min(3 + round, 10)
+
+* Day 1 → 3
+* Day 7+ → max 10
+
+---
+
+#### Update trong handleHarvest
+
+setRoundHarvested(prev => prev + 1);
+
+if (roundHarvested + 1 >= roundGoal) {
+playSound('win');
+setRoundWinVisible(true);
+}
+
+---
+
+#### Progress bar (dock UI)
+
+* Left: 🌾 Ngày {round}
+* Center: progress bar (Animated)
+* Right: 🧺 {roundHarvested}/{roundGoal}
+
+Animated.timing(goalBarAnim, {
+toValue: roundHarvested / roundGoal,
+useNativeDriver: false
+});
+
+---
+
+#### Round Complete Modal
+
+Button: "Ngày mới! ▶"
+
+setRound(r => r + 1);
+setRoundGoal(Math.min(3 + round + 1, 10));
+setRoundHarvested(0);
+setPlots(resetAllPlots());
+setRoundWinVisible(false);
+
+* thêm confetti (clone ConfettiParticle)
+
+---
+
+### Step 3 — Golden Crops
+
+#### Khi plant
+
+isGolden: Math.random() < 0.125  // ~1/8
+
+---
+
+#### Khi render (ripe)
+
+borderColor: '#FBBF24'
+borderWidth: 3
+
+Animation:
+
+Animated.loop(
+Animated.sequence([
+Animated.timing(anim.toolFlash, { toValue: 1.12, duration: 600, useNativeDriver: true }),
+Animated.timing(anim.toolFlash, { toValue: 1.0, duration: 600, useNativeDriver: true }),
+])
+).start();
+
+---
+
+#### Khi harvest golden
+
+* +2 thay vì +1
+* sound combo
+* floating text "+2"
+
+Animated.parallel([
+Animated.timing(opacity, { toValue: 1 }),
+Animated.timing(translateY, { toValue: -20 })
+]);
+
+---
+
+### Step 4 — Milestone Celebrations
+
+#### Constants
+
+const HARVEST_MILESTONES = [5, 10, 20, 35, 50];
+
+---
+
+#### State
+
+const [milestoneVisible, setMilestoneVisible] = useState(false);
+const [activeMilestone, setActiveMilestone] = useState(null);
+const milestonesSeenRef = useRef(new Set());
+
+---
+
+#### Trigger
+
+if (
+HARVEST_MILESTONES.includes(totalHarvested) &&
+!milestonesSeenRef.current.has(totalHarvested)
+) {
+milestonesSeenRef.current.add(totalHarvested);
+setActiveMilestone(totalHarvested);
+setMilestoneVisible(true);
+}
+
+---
+
+#### Milestone Modal
+
+* Confetti (12 particles)
+* 3 stars (stagger 150ms)
+* Text: Bé thu hoạch {activeMilestone} quả rồi! 🌟
+* Button: "Tiếp tục"
+
+---
+
+## State Summary
+
+| State            | Type           | Purpose              |
+| ---------------- | -------------- | -------------------- |
+| round            | number         | Current day          |
+| roundGoal        | number         | Target harvests      |
+| roundHarvested   | number         | Current progress     |
+| roundWinVisible  | boolean        | Show round complete  |
+| milestoneVisible | boolean        | Show milestone modal |
+| activeMilestone  | number | null  | Current milestone    |
+| goalBarAnim      | Animated.Value | Progress animation   |
+
+---
+
+## Verification Checklist
+
+1. Start game → 🌾 Ngày 1, 🧺 0/3
+2. Harvest 3 → modal + confetti + sound
+3. Next day → Ngày 2, 0/4
+4. Golden crop (~1/8) → có pulse
+5. Harvest golden → +2 + animation
+6. Harvest total = 5 → milestone modal
+7. Old win condition không còn trigger
+
+---
+
+## Notes (Fix encoding nếu cần)
+
+cat file.txt | tr -d '\000-\031' > clean.md
+
+hoặc
+
+iconv -f utf-8 -t utf-8 -c input.txt > output.md

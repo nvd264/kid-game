@@ -1,5 +1,13 @@
 # Kid Game — Project Rules for AI
 
+## Agent Rules
+
+- These rules take precedence over default agent behavior
+- MUST NOT use subagents unless explicitly required
+- MUST NOT scan or explore the entire repository
+- MUST only read files explicitly provided by the user
+- MUST prefer single-pass solutions over multi-step orchestration
+
 ## UI Theme
 
 **Read `/THEME_RULES.md` before writing or editing any UI code.**
