@@ -151,10 +151,16 @@ const GROW_PHASE_DURATION = 1200;
 const RIPE_PHASE_DURATION = 1200;
 
 const GARDEN_TOOLS = [
-  { id: 'hoe',     label: 'Cuốc đất',  validState: 'empty',   icon: 'shovel',       color: FARM.subtitleColor },
-  { id: 'water',   label: 'Tưới cây',  validState: 'planted', icon: 'watering-can', color: FARM.headerTitleColor },
-  { id: 'harvest', label: 'Thu hoạch', validState: 'ripe',    icon: 'basket',       color: FARM.playButtonShadow },
+  { id: 'hoe',     label: 'Cuốc đất',  validState: 'empty',   color: FARM.subtitleColor },
+  { id: 'water',   label: 'Tưới cây',  validState: 'planted', color: FARM.headerTitleColor },
+  { id: 'harvest', label: 'Thu hoạch', validState: 'ripe',    color: FARM.playButtonShadow },
 ];
+
+const TOOL_IMAGES = {
+  hoe:     require('../assets/ui/garden/tool-hoe.png'),
+  water:   require('../assets/ui/garden/tool-wateringcan.png'),
+  harvest: require('../assets/ui/garden/tool-basket.png'),
+};
 
 // ── GardenHarvestGame ──
 const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicEnabled }) => {
@@ -165,15 +171,15 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const portraitH = Math.max(winW, winH);
 
   const plotGap = 2;
-  const gardenDockRowMinH = 132;
+  const gardenDockRowMinH = 200;
   const plotSize = useMemo(() => {
     const cols = GARDEN_GRID_COLS; const rows = GARDEN_GRID_ROWS;
-    const fieldPadX = 10; const fieldPadTop = 8; const fieldPadBottom = 6;
+    const fieldPadX = 4; const fieldPadTop = 4; const fieldPadBottom = 4;
     const availW = portraitW - fieldPadX * 2;
     const availH = portraitH - gardenDockRowMinH - fieldPadTop - fieldPadBottom;
     const wCell = (availW - plotGap * (cols - 1)) / cols;
     const hCell = (availH - plotGap * (rows - 1)) / rows;
-    return Math.max(44, Math.min(76, Math.floor(Math.min(wCell, hCell))));
+    return Math.max(44, Math.min(90, Math.floor(Math.min(wCell, hCell))));
   }, [portraitW, portraitH, plotGap, gardenDockRowMinH]);
 
   const [plots, setPlots] = useState([]);
@@ -749,9 +755,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
 
   const gardenFieldBlock = (
     <View style={[styles.gardenFieldPatch, styles.gardenFieldPressablePortrait]}>
-      <Text style={[styles.gardenInstructionText, { fontFamily: F8, marginBottom: 8, paddingHorizontal: 4 }]} numberOfLines={5}>
-        Ruộng giữa 3×3. Chạm hoặc kéo trên ruộng: tự cuốc / tưới / thu hoạch theo từng ô (không cần chọn công cụ). Hai quả chín giống nhau cạnh nhau mở thêm một ô kề; ba quả chín giống nhau liền nhau trên một hàng hoặc cột mở cả hàng hoặc cả cột.
-      </Text>
       <View style={styles.gardenPlotGridColumn}>
         <View
           ref={r => { gardenGridHitRef.current = r; }}
@@ -792,7 +795,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
                   colors={isSelected ? FARM.playButtonGradient : ['#C8954A', '#8C5E20']}
                   style={[styles.gardenToolBtn, isSelected && styles.gardenToolBtnSelected]}
                 >
-                  <MaterialCommunityIcons name={tool.icon} size={42} color={isSelected ? FARM.playButtonText : '#F5E0B0'} />
+                  <Image source={TOOL_IMAGES[tool.id]} style={styles.gardenToolBtnImage} resizeMode="contain" />
                 </LinearGradient>
                 <Text style={[styles.gardenToolBtnLabel, { fontFamily: F8 }]} numberOfLines={1}>{tool.label}</Text>
               </AnimatedPressable>
@@ -841,7 +844,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           style={[styles.gardenDragFloat, { transform: [{ translateX: dragFloatX }, { translateY: dragFloatY }, { scale: dragFloatScale }] }]}
         >
           {GARDEN_TOOLS.filter(t => t.id === dragTool).map(t => (
-            <MaterialCommunityIcons key={t.id} name={t.icon} size={52} color={t.color} />
+            <Image key={t.id} source={TOOL_IMAGES[t.id]} style={{ width: 52, height: 52 }} resizeMode="contain" />
           ))}
         </Animated.View>
       )}
@@ -898,13 +901,11 @@ const styles = StyleSheet.create({
   },
   gardenToolBtnSelected: { borderColor: FARM.cardHintBorder, borderWidth: 4 },
   gardenToolBtnLabel:    { color: '#F5DEB3', fontSize: 10, fontWeight: '800', textAlign: 'center', marginTop: 3 },
-  gardenFieldPressablePortrait: { flex: 1, width: '100%', minHeight: 0, marginHorizontal: 0 },
-  gardenInstructionText:  { color: '#D4EDAE', fontSize: 13, fontWeight: '800', textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  gardenFieldPressablePortrait: { flex: 1, width: '100%', minHeight: 0 },
   gardenFieldPatch: {
-    flex: 1, marginTop: 6, marginHorizontal: 8, marginBottom: 4,
-    borderRadius: 16, borderWidth: 3, borderColor: '#2E5A1A',
-    backgroundColor: '#4A7830', paddingHorizontal: 8, paddingVertical: 10, ...SHADOWS.card,
+    flex: 1, backgroundColor: '#4A7830',
   },
+  gardenToolBtnImage: { width: 46, height: 46 },
   gardenPlotGridColumn: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   gardenGridHitArea:    { alignSelf: 'center' },
   gardenGridRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap' },
