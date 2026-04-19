@@ -7,6 +7,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { FARM, SHADOWS } from '../theme';
 import sharedStyles from '../shared/styles';
 import { AnimatedPressable } from '../shared/components';
+import GardenEffectsCanvas from './effects/GardenEffectsCanvas';
 
 // ── Garden constants ──
 const GARDEN_PLOT_ICON = {
@@ -191,6 +192,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const dragFromFabRef = useRef(false);
   const gardenDragFromDockRef = useRef(false);
   const gardenComboRewardedRef = useRef(new Set());
+  const gardenEffectsRef = useRef(null);
 
   const gardenForgetComboSignaturesTouchingPlot = useCallback((plotId) => {
     const s = gardenComboRewardedRef.current;
@@ -217,6 +219,11 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         Animated.timing(anim.toolFlash, { toValue: 1,    duration: 180, useNativeDriver: true }),
       ]).start();
     });
+    const centers = burstIds.map(pid => {
+      const l = plotLayoutsRef.current[pid];
+      return l ? { x: l.x + l.width / 2, y: l.y + l.height / 2 } : null;
+    }).filter(Boolean);
+    if (centers.length) gardenEffectsRef.current?.emitCombo(centers);
   }, []);
 
   const runUnlockGlow = useCallback((toOpen) => {
@@ -228,6 +235,13 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           Animated.delay(idx * 45),
           Animated.timing(anim.unlockPulse, { toValue: 1, duration: 420, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
         ]).start(() => { anim.unlockPulse.setValue(0); });
+      }
+      const l = plotLayoutsRef.current[pid];
+      if (l) {
+        setTimeout(
+          () => gardenEffectsRef.current?.emitUnlock(l.x + l.width / 2, l.y + l.height / 2),
+          idx * 45 + 280,
+        );
       }
     });
   }, []);
@@ -449,6 +463,11 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         Animated.timing(flyAnimY, { toValue: targetY, duration: 520, useNativeDriver: true }),
         Animated.timing(flyAnimOp, { toValue: 0,       duration: 480, useNativeDriver: true }),
       ]).start(() => setFlyOverlay(null));
+      gardenEffectsRef.current?.emitHarvest(
+        plotLayout.x + plotLayout.width / 2,
+        plotLayout.y + plotLayout.height / 2,
+        plot.crop.name,
+      );
     }
 
     setPlots(prev => prev.map(p => p.id === plot.id ? { ...p, state: 'empty', crop: null } : p));
@@ -830,6 +849,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           {gardenDockBlock}
         </View>
         {gardenFlyAndDrag}
+        <GardenEffectsCanvas ref={gardenEffectsRef} />
       </View>
       <Modal visible={gardenWinVisible} transparent animationType="fade">
         <View style={styles.gardenWinBackdrop}>
