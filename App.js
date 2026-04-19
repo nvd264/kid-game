@@ -23,8 +23,20 @@ const themes = {
   vehicles: {
     name: 'Phương tiện',
     emoji: '🚗',
-    items: ['🚗', '🚕', '🚌', '🚑', '🚒', '🚜', '🚲', '🛵', '✈️', '🚢']
+    items: ['v_sedan', 'v_taxi', 'v_ambulance', 'v_police', 'v_firetruck', 'v_tractor', 'v_suv', 'v_race', 'v_garbage', 'v_hatchback']
   }
+};
+const VEHICLE_ASSETS = {
+  v_sedan:    require('./assets/ui/car/Previews/sedan.png'),
+  v_taxi:     require('./assets/ui/car/Previews/taxi.png'),
+  v_ambulance:require('./assets/ui/car/Previews/ambulance.png'),
+  v_police:   require('./assets/ui/car/Previews/police.png'),
+  v_firetruck:require('./assets/ui/car/Previews/firetruck.png'),
+  v_tractor:  require('./assets/ui/car/Previews/tractor.png'),
+  v_suv:      require('./assets/ui/car/Previews/suv.png'),
+  v_race:     require('./assets/ui/car/Previews/race.png'),
+  v_garbage:  require('./assets/ui/car/Previews/garbage-truck.png'),
+  v_hatchback:require('./assets/ui/car/Previews/hatchback-sports.png'),
 };
 const THEME_ORDER = ['animals', 'fruits', 'vehicles'];
 
@@ -145,6 +157,15 @@ const getEmojiImageUri = (emoji) =>
 // Twemoji icon with native emoji fallback
 const Icon = ({ value, size }) => {
   const [loadFailed, setLoadFailed] = useState(false);
+  if (VEHICLE_ASSETS[value]) {
+    return (
+      <Image
+        source={VEHICLE_ASSETS[value]}
+        style={{ width: size, height: size }}
+        resizeMode="contain"
+      />
+    );
+  }
   if (!loadFailed && value) {
     return (
       <Image
