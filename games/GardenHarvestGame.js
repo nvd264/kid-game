@@ -9,6 +9,24 @@ import sharedStyles from '../shared/styles';
 import { AnimatedPressable } from '../shared/components';
 import GardenEffectsCanvas from './effects/GardenEffectsCanvas';
 
+// ── Tile images ──
+const TILES = {
+  grass:  require('../assets/ui/tiny-town/Tiles/tile_0000.png'),
+  soil:   require('../assets/ui/tiny-town/Tiles/tile_0012.png'),
+  soil2:  require('../assets/ui/tiny-town/Tiles/tile_0013.png'),
+  soil3:  require('../assets/ui/tiny-town/Tiles/tile_0024.png'),
+  soil4:  require('../assets/ui/tiny-town/Tiles/tile_0025.png'),
+  stone:  require('../assets/ui/tiny-town/Tiles/tile_0049.png'),
+  stone2: require('../assets/ui/tiny-town/Tiles/tile_0060.png'),
+};
+
+const PLOT_TILE = { empty: 'soil', planted: 'soil2', growing: 'soil3', ripe: 'soil4' };
+const PLOT_OVERLAY = {
+  planted: 'rgba(190,230,160,0.38)',
+  growing: 'rgba(60,170,60,0.40)',
+  ripe:    'rgba(255,200,30,0.42)',
+};
+
 // ── Garden constants ──
 const GARDEN_PLOT_ICON = {
   empty:   { name: 'terrain', color: FARM.playButtonShadow },
@@ -654,14 +672,6 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const plotVectorIconSize = Math.round(Math.min(plotSize - 16, 68));
   const cropArtSize = Math.round(Math.min(plotSize - 14, 76));
 
-  const getPlotGradient = (plot) => {
-    if (plot.state === 'empty')   return [FARM.subtitleColor, FARM.playButtonShadow];
-    if (plot.state === 'planted') return [FARM.cardFront, FARM.cardFrontBorder];
-    if (plot.state === 'growing') return [FARM.cardMatched, FARM.grassLight];
-    if (plot.state === 'ripe')    return [FARM.cardMatched, FARM.hillColor];
-    return [FARM.subtitleColor, FARM.playButtonShadow];
-  };
-
   const renderGardenCell = (plot) => {
     const isLocked = !plot.unlocked;
     const anim = plotAnimsRef.current[plot.id];
@@ -671,53 +681,51 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const scaleTransform = anim ? [{ scale: anim.grow }, { scale: anim.toolFlash }] : [];
     const ripeArt = getRipeCropArt(plot);
     const isHovered = !isLocked && hoveredPlotId === plot.id;
-    const gradient = getPlotGradient(plot);
     const iconSz = Math.round(plotVectorIconSize * (isLocked ? 0.82 : 1));
     const previewArt = plot.previewCrop?.ripeArt;
+    const tileKey = isLocked ? 'stone' : (PLOT_TILE[plot.state] ?? 'soil');
+    const overlayColor = !isLocked ? PLOT_OVERLAY[plot.state] : null;
 
     return (
       <Animated.View
         key={plot.id}
         style={[styles.gardenPlotWrap, isLocked && styles.gardenPlotWrapLocked, { transform: scaleTransform, width: plotSize, height: plotSize }]}
       >
-        <View>
-          <LinearGradient
-            colors={gradient}
-            style={[
-              styles.gardenPlot, { width: plotSize, height: plotSize },
-              plot.state === 'empty' && !isLocked && styles.gardenPlotEmpty,
-              isHovered && styles.gardenPlotHovered,
-              isLocked && styles.gardenPlotLockedOverlay,
-            ]}
-          >
-            {isLocked && previewArt ? (
-              <Image source={previewArt} style={[styles.gardenPlotCropImage, styles.gardenLockedPreviewImage, { width: cropArtSize, height: cropArtSize }]} resizeMode="contain" />
-            ) : null}
-            {!isLocked && plot.state === 'empty' ? (
-              <MaterialCommunityIcons name={GARDEN_PLOT_ICON.empty.name} size={iconSz} color={GARDEN_PLOT_ICON.empty.color} />
-            ) : !isLocked && plot.state === 'planted' ? (
-              <MaterialCommunityIcons name={GARDEN_PLOT_ICON.planted.name} size={iconSz} color={GARDEN_PLOT_ICON.planted.color} />
-            ) : !isLocked && plot.state === 'growing' ? (
-              <MaterialCommunityIcons name={GARDEN_PLOT_ICON.growing.name} size={iconSz} color={GARDEN_PLOT_ICON.growing.color} />
-            ) : !isLocked && ripeArt ? (
-              <Image source={ripeArt} style={[styles.gardenPlotCropImage, { width: cropArtSize, height: cropArtSize }]} resizeMode="contain" />
-            ) : null}
-            {isLocked && (
-              <View style={styles.gardenLockedStoneWrap} pointerEvents="none">
-                <LinearGradient
-                  colors={[FARM.gardenStoneLight, FARM.gardenStoneDark]}
-                  start={{ x: 0.12, y: 0.08 }} end={{ x: 0.92, y: 0.98 }}
-                  style={styles.gardenLockedStoneBlob}
-                >
-                  <View style={styles.gardenLockedStoneHighlight} />
-                  <View style={styles.gardenLockedStoneChip} />
-                  <View style={styles.gardenLockedStoneIconWrap}>
-                    <MaterialCommunityIcons name="octagon-outline" size={Math.round(plotSize * 0.34)} color="rgba(32,34,38,0.9)" />
-                  </View>
-                </LinearGradient>
+        <View
+          style={[
+            styles.gardenPlot, { width: plotSize, height: plotSize },
+            plot.state === 'empty' && !isLocked && styles.gardenPlotEmpty,
+            isHovered && styles.gardenPlotHovered,
+          ]}
+        >
+          {/* Tile texture background */}
+          <Image source={TILES[tileKey]} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+          {/* State color wash */}
+          {overlayColor ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: overlayColor, borderRadius: 12 }]} pointerEvents="none" /> : null}
+          {/* Locked dark veil + preview */}
+          {isLocked ? (
+            <>
+              <View style={[StyleSheet.absoluteFillObject, styles.gardenLockedVeil]} pointerEvents="none" />
+              {previewArt ? (
+                <Image source={previewArt} style={[styles.gardenPlotCropImage, styles.gardenLockedPreviewImage, { width: cropArtSize, height: cropArtSize }]} resizeMode="contain" />
+              ) : null}
+              <View style={styles.gardenLockedIconWrap} pointerEvents="none">
+                <Ionicons name="lock-closed" size={Math.round(plotSize * 0.3)} color="rgba(255,255,255,0.82)" />
               </View>
-            )}
-          </LinearGradient>
+            </>
+          ) : (
+            <>
+              {plot.state === 'empty' ? (
+                <MaterialCommunityIcons name={GARDEN_PLOT_ICON.empty.name} size={iconSz} color="rgba(120,70,10,0.55)" />
+              ) : plot.state === 'planted' ? (
+                <MaterialCommunityIcons name={GARDEN_PLOT_ICON.planted.name} size={iconSz} color={GARDEN_PLOT_ICON.planted.color} />
+              ) : plot.state === 'growing' ? (
+                <MaterialCommunityIcons name={GARDEN_PLOT_ICON.growing.name} size={iconSz} color={GARDEN_PLOT_ICON.growing.color} />
+              ) : ripeArt ? (
+                <Image source={ripeArt} style={[styles.gardenPlotCropImage, { width: cropArtSize, height: cropArtSize }]} resizeMode="contain" />
+              ) : null}
+            </>
+          )}
         </View>
         {unlockGlow != null && (
           <Animated.View
@@ -781,10 +789,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
                 onPress={() => { setSelectedToolId(tool.id); selectedToolIdRef.current = tool.id; playSound('tap'); }}
               >
                 <LinearGradient
-                  colors={isSelected ? FARM.playButtonGradient : [FARM.cardFront, FARM.cardFrontBorder]}
+                  colors={isSelected ? FARM.playButtonGradient : ['#C8954A', '#8C5E20']}
                   style={[styles.gardenToolBtn, isSelected && styles.gardenToolBtnSelected]}
                 >
-                  <MaterialCommunityIcons name={tool.icon} size={42} color={isSelected ? FARM.playButtonText : FARM.subtitleColor} />
+                  <MaterialCommunityIcons name={tool.icon} size={42} color={isSelected ? FARM.playButtonText : '#F5E0B0'} />
                 </LinearGradient>
                 <Text style={[styles.gardenToolBtnLabel, { fontFamily: F8 }]} numberOfLines={1}>{tool.label}</Text>
               </AnimatedPressable>
@@ -874,7 +882,7 @@ const styles = StyleSheet.create({
   gardenRootPortrait:       { flex: 1, position: 'relative' },
   gardenPortraitColumn:     { flex: 1, flexDirection: 'column', minHeight: 0 },
   gardenOverlayLayer:       { ...StyleSheet.absoluteFillObject, zIndex: 50 },
-  gardenDockColumnPortrait: { borderTopWidth: 3, borderTopColor: FARM.grassDark, backgroundColor: 'rgba(255,255,255,0.4)', paddingBottom: 10, paddingTop: 4 },
+  gardenDockColumnPortrait: { borderTopWidth: 3, borderTopColor: '#7A4A14', backgroundColor: 'rgba(112,64,16,0.88)', paddingBottom: 10, paddingTop: 4 },
   gardenDockTopBar:         { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 10, paddingBottom: 4 },
   gardenDockToolsOneRow:    { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 12, paddingHorizontal: 8, paddingVertical: 4, flexWrap: 'nowrap' },
   gardenDockBottomRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 6, paddingHorizontal: 12 },
@@ -883,19 +891,19 @@ const styles = StyleSheet.create({
     borderRadius: 14, borderWidth: 2, borderColor: FARM.cardMatchedBorder,
     paddingHorizontal: 8, paddingVertical: 5, gap: 4, ...SHADOWS.header,
   },
-  gardenDockBasketCount: { color: FARM.subtitleColor, fontSize: 16, fontWeight: '900' },
+  gardenDockBasketCount: { color: FARM.playButtonShadow, fontSize: 16, fontWeight: '900' },
   gardenToolBtn: {
     width: 80, height: 80, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: FARM.cardFrontBorder, ...SHADOWS.button,
+    borderWidth: 3, borderColor: '#7A4A14', ...SHADOWS.button,
   },
   gardenToolBtnSelected: { borderColor: FARM.cardHintBorder, borderWidth: 4 },
-  gardenToolBtnLabel:    { color: FARM.subtitleColor, fontSize: 10, fontWeight: '800', textAlign: 'center', marginTop: 3 },
+  gardenToolBtnLabel:    { color: '#F5DEB3', fontSize: 10, fontWeight: '800', textAlign: 'center', marginTop: 3 },
   gardenFieldPressablePortrait: { flex: 1, width: '100%', minHeight: 0, marginHorizontal: 0 },
-  gardenInstructionText:  { color: FARM.subtitleColor, fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  gardenInstructionText:  { color: '#D4EDAE', fontSize: 13, fontWeight: '800', textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   gardenFieldPatch: {
     flex: 1, marginTop: 6, marginHorizontal: 8, marginBottom: 4,
-    borderRadius: 16, borderWidth: 3, borderColor: FARM.grassDark,
-    backgroundColor: FARM.grassMid, paddingHorizontal: 8, paddingVertical: 10, ...SHADOWS.card,
+    borderRadius: 16, borderWidth: 3, borderColor: '#2E5A1A',
+    backgroundColor: '#4A7830', paddingHorizontal: 8, paddingVertical: 10, ...SHADOWS.card,
   },
   gardenPlotGridColumn: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   gardenGridHitArea:    { alignSelf: 'center' },
@@ -903,17 +911,13 @@ const styles = StyleSheet.create({
   gardenPlotWrap:       { borderRadius: 14, ...SHADOWS.card },
   gardenPlotWrapLocked: { shadowOpacity: 0.12, elevation: 2 },
   gardenPlot: {
-    borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden', borderWidth: 2, borderColor: FARM.cardFrontBorder,
+    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', borderWidth: 2, borderColor: '#C8A064',
   },
-  gardenPlotEmpty:        { borderStyle: 'dashed', borderColor: FARM.grassLight, borderWidth: 2 },
-  gardenPlotLockedOverlay: { opacity: 1 },
-  gardenLockedPreviewImage: { opacity: 0.38, position: 'absolute' },
-  gardenLockedStoneWrap:  { position: 'absolute', left: '6%', top: '8%', right: '6%', bottom: '8%', alignItems: 'center', justifyContent: 'center' },
-  gardenLockedStoneBlob:  { width: '88%', height: '88%', borderRadius: 999, borderWidth: 2, borderColor: 'rgba(48,50,54,0.45)', overflow: 'hidden', justifyContent: 'center', alignItems: 'center', transform: [{ rotate: '-8deg' }] },
-  gardenLockedStoneHighlight: { position: 'absolute', top: '12%', left: '14%', width: '38%', height: '26%', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.28)' },
-  gardenLockedStoneChip:  { position: 'absolute', bottom: '18%', right: '16%', width: '22%', height: '14%', borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.12)', transform: [{ rotate: '12deg' }] },
-  gardenLockedStoneIconWrap: { alignItems: 'center', justifyContent: 'center' },
+  gardenPlotEmpty:        { borderStyle: 'dashed', borderColor: '#A07840', borderWidth: 2 },
+  gardenLockedPreviewImage: { opacity: 0.35, position: 'absolute' },
+  gardenLockedVeil:       { backgroundColor: 'rgba(0,0,0,0.44)', borderRadius: 12 },
+  gardenLockedIconWrap:   { position: 'absolute', alignItems: 'center', justifyContent: 'center', bottom: '14%' },
   gardenUnlockGlow: {
     ...StyleSheet.absoluteFillObject, margin: -3, borderRadius: 18, borderWidth: 3,
     shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.75, shadowRadius: 12, elevation: 10,
