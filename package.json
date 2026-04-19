@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@expo-google-fonts/nunito": "^0.4.2",
-    "@shopify/react-native-skia": "2.2.12",
     "babel-preset-expo": "~54.0.10",
     "expo": "~54.0.33",
     "expo-av": "~16.0.8",
