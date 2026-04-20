@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, Animated, Easing, Modal, PanResponder, StyleSheet, StatusBar, useWindowDimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Animated, Easing, Modal, PanResponder, StyleSheet, StatusBar, useWindowDimensions, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -183,6 +183,12 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const [hoveredPlotId, setHoveredPlotId] = useState(null);
   const [selectedToolId, setSelectedToolId] = useState('hoe');
   const [gardenWinVisible, setGardenWinVisible] = useState(false);
+  
+  // New Round State
+  const [currentRound, setCurrentRound] = useState(1);
+  const [maxRounds, setMaxRounds] = useState(3);
+  const [roundTarget, setRoundTarget] = useState(5); // Harvest X crops to complete round
+  const [roundCompleted, setRoundCompleted] = useState(false);
 
   const plotAnimsRef = useRef({});
   const plotLayoutsRef = useRef({});
@@ -328,17 +334,42 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     }));
     initial.forEach(p => initPlotAnim(p.id));
     setPlots(initial);
+    startNewRound();
   }, [initPlotAnim]);
+
+  const startNewRound = useCallback(() => {
+    setRoundCompleted(false);
+    setRoundTarget(5 + (currentRound - 1) * 2); // Increase target slightly each round
+    // Reset plots to empty but keep unlocked status
+    setPlots(prev => prev.map(p => ({
+      ...p,
+      state: 'empty',
+      crop: null,
+      harvested: false
+    })));
+    setTotalHarvested(0);
+  }, [currentRound]);
 
   useEffect(() => { plotsRef.current = plots; }, [plots]);
   useEffect(() => { selectedToolIdRef.current = selectedToolId; }, [selectedToolId]);
 
+  // Check for round completion
   useEffect(() => {
-    if (!plots.length || gardenWinVisible) return;
-    const allUnlocked = plots.every(p => p.unlocked);
-    const allPlayableEmpty = plots.every(p => !p.unlocked || p.state === 'empty');
-    if (allUnlocked && allPlayableEmpty) { setGardenWinVisible(true); playSound('match'); }
-  }, [plots, gardenWinVisible, playSound]);
+    if (!plots.length || gardenWinVisible || roundCompleted) return;
+    if (totalHarvested >= roundTarget) {
+      setRoundCompleted(true);
+      playSound('match');
+      // Small delay before showing win modal for next round
+      setTimeout(() => {
+        if (currentRound < maxRounds) {
+          setCurrentRound(prev => prev + 1);
+          startNewRound();
+        } else {
+          setGardenWinVisible(true);
+        }
+      }, 1500);
+    }
+  }, [totalHarvested, roundTarget, gardenWinVisible, roundCompleted, currentRound, maxRounds, playSound]);
 
   useEffect(() => {
     (async () => {
@@ -361,7 +392,12 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
 
   const handlePlant = useCallback((plotId) => {
     if (!gardenPlotIsPlayable(plotId)) return;
-    const crop = randomGardenCrop();
+    // 10% chance for Golden Crop
+    const isGolden = Math.random() < 0.1;
+    const crop = isGolden 
+      ? { ...randomGardenCrop(), isGolden: true } 
+      : randomGardenCrop();
+    
     setPlots(prev => prev.map(p => p.id === plotId ? { ...p, state: 'planted', crop } : p));
     const anim = plotAnimsRef.current[plotId];
     const paintOnlyDrag = gardenFieldDragActiveRef.current && !gardenDragFromDockRef.current;
@@ -686,10 +722,14 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const tileKey = isLocked ? 'stone' : (PLOT_TILE[plot.state] ?? 'soil');
     const overlayColor = !isLocked ? PLOT_OVERLAY[plot.state] : null;
 
+    // Golden crop styling
+    const isGolden = plot.crop?.isGolden;
+    const goldenGlow = isGolden ? [{ shadowColor: '#FFD700', shadowOpacity: 0.6, shadowRadius: 15, elevation: 10 }] : [];
+
     return (
       <Animated.View
         key={plot.id}
-        style={[styles.gardenPlotWrap, isLocked && styles.gardenPlotWrapLocked, { transform: scaleTransform, width: plotSize, height: plotSize }]}
+        style={[styles.gardenPlotWrap, isLocked && styles.gardenPlotWrapLocked, { transform: scaleTransform, width: plotSize, height: plotSize }, ...goldenGlow]}
       >
         <View
           style={[
@@ -750,7 +790,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
   const gardenFieldBlock = (
     <View style={[styles.gardenFieldPatch, styles.gardenFieldPressablePortrait]}>
       <Text style={[styles.gardenInstructionText, { fontFamily: F8, marginBottom: 8, paddingHorizontal: 4 }]} numberOfLines={5}>
-        Ruộng giữa 3×3. Chạm hoặc kéo trên ruộng: tự cuốc / tưới / thu hoạch theo từng ô (không cần chọn công cụ). Hai quả chín giống nhau cạnh nhau mở thêm một ô kề; ba quả chín giống nhau liền nhau trên một hàng hoặc cột mở cả hàng hoặc cả cột.
+        Vòng {currentRound}/{maxRounds}: Thu hoạch {roundTarget} quả để qua vòng tiếp theo! Tìm quả vàng 🌟 để nhận quà bất ngờ.
       </Text>
       <View style={styles.gardenPlotGridColumn}>
         <View
@@ -812,7 +852,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
           style={[styles.gardenDockBasket, { transform: [{ scale: basketBounce }] }]}
         >
           <MaterialCommunityIcons name="basket" size={20} color={FARM.playButtonShadow} />
-          <Text style={[styles.gardenDockBasketCount, { fontFamily: F8 }]}>{totalHarvested}</Text>
+          <Text style={[styles.gardenDockBasketCount, { fontFamily: F8 }]}>{totalHarvested} / {roundTarget}</Text>
         </Animated.View>
         {toggleMusic != null && (
           <TouchableOpacity onPress={toggleMusic} activeOpacity={0.9}>
@@ -863,7 +903,7 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
         <View style={styles.gardenWinBackdrop}>
           <LinearGradient colors={[FARM.cardFront, FARM.cardMatched]} style={styles.gardenWinCard}>
             <Text style={[styles.gardenWinTitle, { fontFamily: F }]}>🎉 Chiến thắng!</Text>
-            <Text style={[styles.gardenWinSub, { fontFamily: F8 }]}>Bạn đã mở hết ruộng và thu hoạch xong. Tuyệt vời!</Text>
+            <Text style={[styles.gardenWinSub, { fontFamily: F8 }]}>Bạn đã hoàn thành tất cả các vòng chơi. Tuyệt vời!</Text>
             <AnimatedPressable onPress={() => { playSound('tap'); onExit(); }}>
               <LinearGradient colors={FARM.playButtonGradient} style={styles.gardenWinBtn}>
                 <Text style={[styles.gardenWinBtnText, { fontFamily: F8 }]}>Về menu</Text>
