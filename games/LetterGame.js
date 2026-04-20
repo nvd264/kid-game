@@ -74,7 +74,7 @@ const LetterGame = ({ playSound, onExit, fontsLoaded }) => {
       >
         <View style={styles.letterHeroCard}>
           <View style={styles.letterHeroIconRing}>
-            <Icon value={entry.emoji} size={120} />
+            <Icon value={entry.assetKey} size={120} />
           </View>
           <Text style={[styles.letterHeroLetter, { fontFamily: F }]}>{entry.letter}</Text>
           <Text style={[styles.letterHeroHint, { fontFamily: F7 }]}>Ví dụ: {entry.word}</Text>

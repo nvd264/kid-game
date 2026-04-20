@@ -4,11 +4,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { FARM, SHADOWS } from '../theme';
 import sharedStyles from './styles';
-import { VEHICLE_ASSETS, CONFETTI_EMOJIS, SCREEN_WIDTH, getEmojiImageUri } from './constants';
+import { ANIMAL_ASSETS, VEHICLE_ASSETS, CONFETTI_ASSETS, SCREEN_WIDTH, getEmojiImageUri } from './constants';
 
 // ── Twemoji icon with native emoji fallback ──
 export const Icon = ({ value, size }) => {
   const [loadFailed, setLoadFailed] = useState(false);
+  if (ANIMAL_ASSETS[value]) {
+    return (
+      <Image
+        source={ANIMAL_ASSETS[value]}
+        style={{ width: size, height: size }}
+        resizeMode="contain"
+      />
+    );
+  }
   if (VEHICLE_ASSETS[value]) {
     return (
       <Image
@@ -48,15 +57,18 @@ export const AnimatedPressable = ({ onPress, style, children, disabled }) => {
 };
 
 // ── Confetti particle ──
-export const ConfettiParticle = ({ anim, x, emoji, size }) => {
+export const ConfettiParticle = ({ anim, x, assetKey, size }) => {
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -340] });
   const opacity    = anim.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 0.9, 0] });
-  const rotate     = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${(Math.random() > 0.5 ? 1 : -1) * 360}deg`] });
+  const rotate     = anim.interpolate({ inputRange: [0, 1], outputRange: [0, (Math.random() > 0.5 ? 1 : -1) * 360] });
+  const source = ANIMAL_ASSETS[assetKey] || VEHICLE_ASSETS[assetKey];
   return (
-    <Animated.Text style={{
-      position: 'absolute', bottom: 40, left: x, fontSize: size,
+    <Animated.View style={{
+      position: 'absolute', bottom: 40, left: x, width: size, height: size,
       opacity, transform: [{ translateY }, { rotate }],
-    }}>{emoji}</Animated.Text>
+    }}>
+      <Image source={source} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+    </Animated.View>
   );
 };
 
@@ -71,7 +83,7 @@ export const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue,
   const confettiData = useRef(
     Array.from({ length: 18 }, (_, i) => ({
       x: Math.floor(Math.random() * (SCREEN_WIDTH - 40)),
-      emoji: CONFETTI_EMOJIS[i % CONFETTI_EMOJIS.length],
+      assetKey: CONFETTI_ASSETS[i % CONFETTI_ASSETS.length],
       size: 16 + Math.floor(Math.random() * 16),
     }))
   ).current;
@@ -120,7 +132,7 @@ export const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue,
     return () => { stopCelebration(); };
   }, [visible, stars]);
 
-  const praiseText = stars >= 3 ? 'Xuất sắc! 🌟' : stars >= 2 ? 'Giỏi lắm! 😊' : 'Cố lên bé nhé! 💪';
+  const praiseText = stars >= 3 ? 'Xuất sắc!' : stars >= 2 ? 'Giỏi lắm!' : 'Cố lên bé nhé!';
   const isLastLevel = levelNum >= totalLevels;
   const continueLabel = stars <= 1 ? 'Chơi lại' : isLastLevel ? 'Về chọn game' : 'Tiếp theo ▶';
 
@@ -128,7 +140,7 @@ export const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue,
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={sharedStyles.popupOverlay}>
         {confettiAnims.map((anim, i) => (
-          <ConfettiParticle key={i} anim={anim} x={confettiData[i].x} emoji={confettiData[i].emoji} size={confettiData[i].size} />
+          <ConfettiParticle key={i} anim={anim} x={confettiData[i].x} assetKey={confettiData[i].assetKey} size={confettiData[i].size} />
         ))}
         <View style={sharedStyles.popupCardShell}>
           <View style={sharedStyles.popupCard}>
@@ -136,9 +148,13 @@ export const RewardPopup = ({ visible, stars, levelNum, totalLevels, onContinue,
 
             <View style={{ flexDirection: 'row', gap: 8, marginVertical: 14 }}>
               {[0, 1, 2].map((i) => (
-                <Animated.Text key={i} style={{ fontSize: 44, transform: [{ scale: starScales[i] }] }}>
-                  {i < stars ? '⭐' : '🌑'}
-                </Animated.Text>
+                <Animated.View key={i} style={{ width: 44, height: 44, transform: [{ scale: starScales[i] }] }}>
+                  <Image
+                    source={ANIMAL_ASSETS[i < stars ? 'a_egg' : 'a_potato']}
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="contain"
+                  />
+                </Animated.View>
               ))}
             </View>
 

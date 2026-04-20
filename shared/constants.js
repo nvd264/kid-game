@@ -6,19 +6,39 @@ export const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('wi
 export const themes = {
   animals: {
     name: 'Con vật',
-    emoji: '🐾',
-    items: ['🐶', '🐱', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐸'],
+    assetKey: 'a_horse',
+    items: ['a_chicken', 'a_cow', 'a_duck', 'a_horse', 'a_pig', 'a_sheep', 'a_sheep', 'a_horse', 'a_cow', 'a_duck'],
   },
   fruits: {
     name: 'Trái cây',
-    emoji: '🍓',
-    items: ['🍎', '🍌', '🍇', '🍓', '🍊', '🍉', '🥝', '🍑', '🥭', '🍍'],
+    assetKey: 'a_strawberry',
+    items: ['a_strawberry', 'a_corn', 'a_strawberry', 'a_strawberry', 'a_carrot', 'a_strawberry', 'a_corn', 'a_strawberry', 'a_carrot', 'a_corn'],
   },
   vehicles: {
     name: 'Phương tiện',
-    emoji: '🚗',
+    assetKey: 'a_horse',
     items: ['v_sedan', 'v_taxi', 'v_ambulance', 'v_police', 'v_firetruck', 'v_tractor', 'v_suv', 'v_race', 'v_garbage', 'v_hatchback'],
   },
+};
+
+export const ANIMAL_ASSETS = {
+  a_chicken:   require('../assets/ui/farm/chicken-hen-farm-poultry-bird-001.png'),
+  a_cow:       require('../assets/ui/farm/cow-cattle-dairy-farm-animal-008.png'),
+  a_duck:      require('../assets/ui/farm/duck-farm-bird-pond-waterfowl-006.png'),
+  a_horse:     require('../assets/ui/farm/farm_animals-horse-farm-animal-brown-stallion-005.png'),
+  a_pig:       require('../assets/ui/farm/farm_animals-pig-farm-animal-pink-swine-003.png'),
+  a_sheep:     require('../assets/ui/farm/farm_animals-sheep-wool-animal-fluffy-farm-004.png'),
+  a_egg:       require('../assets/ui/farm/egg-item-chicken-product-farming-001.png'),
+  a_corn:      require('../assets/ui/farm/corn-stalk-tall-yellow-maize-004.png'),
+  a_strawberry: require('../assets/ui/farm/farm_crops_growing-strawberry-plant-red-berry-bush-007.png'),
+  a_carrot:    require('../assets/ui/farm/carrot-crop-orange-vegetable-garden-002.png'),
+  a_barn:      require('../assets/ui/farm/barn-building-red-farm-structure-001.png'),
+  a_milk:      require('../assets/ui/farm/farm_animal_products-milk-bottle-dairy-product-farming-002.png'),
+  a_wool:      require('../assets/ui/farm/farm_animal_products-wool-bundle-sheep-product-farming-003.png'),
+  a_potato:    require('../assets/ui/farm/farm_crops_growing-potato-plant-brown-tuber-garden-005.png'),
+  a_tomato:    require('../assets/ui/farm/farm_crops_growing-tomato-plant-red-fruit-vine-003.png'),
+  a_pumpkin:   require('../assets/ui/farm/farm_crops_growing-pumpkin-crop-orange-gourd-vine-006.png'),
+  a_cabbage:   require('../assets/ui/farm/cabbage-crop-green-leafy-vegetable-008.png'),
 };
 
 export const VEHICLE_ASSETS = {
@@ -61,7 +81,7 @@ export const ANIMAL_SOUNDS = [
   {
     id: 'sparrow',
     name: 'Chim sẻ',
-    emoji: '🐦',
+    assetKey: 'a_chicken',
     imageUri: 'https://images.pexels.com/photos/355154/pexels-photo-355154.jpeg',
     soundAssets: [
       require('../assets/sounds/animals/sparrow-1.wav'),
@@ -72,7 +92,7 @@ export const ANIMAL_SOUNDS = [
   {
     id: 'dove',
     name: 'Bồ câu',
-    emoji: '🕊️',
+    assetKey: 'a_duck',
     imageUri: 'https://images.pexels.com/photos/6508358/pexels-photo-6508358.jpeg',
     soundAssets: [
       require('../assets/sounds/animals/dove-1.wav'),
@@ -83,7 +103,7 @@ export const ANIMAL_SOUNDS = [
   {
     id: 'canary',
     name: 'Chim hoang yến',
-    emoji: '🐤',
+    assetKey: 'a_chicken',
     imageUri: 'https://images.pexels.com/photos/349758/hummingbird-bird-birds-349758.jpeg',
     soundAssets: [
       require('../assets/sounds/animals/canary-1.wav'),
@@ -94,7 +114,7 @@ export const ANIMAL_SOUNDS = [
   {
     id: 'nightingale',
     name: 'Chim sơn ca',
-    emoji: '🐦',
+    assetKey: 'a_chicken',
     imageUri: 'https://images.pexels.com/photos/326900/pexels-photo-326900.jpeg',
     soundAssets: [
       require('../assets/sounds/animals/nightingale-1.wav'),
@@ -105,7 +125,7 @@ export const ANIMAL_SOUNDS = [
   {
     id: 'cicada',
     name: 'Ve sầu',
-    emoji: '🎵',
+    assetKey: 'a_corn',
     imageUri: 'https://images.pexels.com/photos/2071882/pexels-photo-2071882.jpeg',
     soundAssets: [
       require('../assets/sounds/animals/cicada-1.wav'),
@@ -116,7 +136,7 @@ export const ANIMAL_SOUNDS = [
   {
     id: 'bird',
     name: 'Chim non',
-    emoji: '🐥',
+    assetKey: 'a_chicken',
     imageUri: 'https://images.pexels.com/photos/1661179/pexels-photo-1661179.jpeg',
     soundAssets: [
       require('../assets/sounds/animals/bird-2.wav'),
@@ -177,7 +197,7 @@ export const LETTER_SOUND_ASSETS = {
 };
 
 // ── Level system ──
-export const CONFETTI_EMOJIS = ['⭐', '🌟', '✨', '🎉', '🎊', '💛', '🌈'];
+export const CONFETTI_ASSETS = ['a_egg', 'a_egg', 'a_egg', 'a_strawberry', 'a_strawberry', 'a_strawberry', 'a_corn'];
 export const LEVEL_TIERS = ['easy', 'medium', 'hard', 'expert', 'master'];
 export const MAX_SUB_LEVELS = 3;
 export const RELEASED_SUB_LEVELS = 2;
@@ -204,35 +224,35 @@ export const getTierLabel = (tier) => {
 
 // ── Vietnamese alphabet ──
 export const VIETNAMESE_ALPHABET = [
-  { letter: 'A',  emoji: '👕',  word: 'Áo' },
-  { letter: 'Ă',  emoji: '🍚',  word: 'Ăn cơm' },
-  { letter: 'Â',  emoji: '🎵',  word: 'Âm nhạc' },
-  { letter: 'B',  emoji: '🦋',  word: 'Bướm' },
-  { letter: 'C',  emoji: '🐟',  word: 'Cá' },
-  { letter: 'D',  emoji: '🍉',  word: 'Dưa hấu' },
-  { letter: 'Đ',  emoji: '💡',  word: 'Đèn' },
-  { letter: 'E',  emoji: '👶',  word: 'Em bé' },
-  { letter: 'Ê',  emoji: '🐸',  word: 'Ếch' },
-  { letter: 'G',  emoji: '🐔',  word: 'Gà' },
-  { letter: 'H',  emoji: '🌸',  word: 'Hoa' },
-  { letter: 'I',  emoji: '🤫',  word: 'Im lặng' },
-  { letter: 'K',  emoji: '🍬',  word: 'Kẹo' },
-  { letter: 'L',  emoji: '🍃',  word: 'Lá' },
-  { letter: 'M',  emoji: '🐱',  word: 'Mèo' },
-  { letter: 'N',  emoji: '🦌',  word: 'Nai' },
-  { letter: 'O',  emoji: '🐝',  word: 'Ong' },
-  { letter: 'Ô',  emoji: '🚗',  word: 'Ô tô' },
-  { letter: 'Ơ',  emoji: '🌶️', word: 'Ớt' },
-  { letter: 'P',  emoji: '📌',  word: 'Pin' },
-  { letter: 'Q',  emoji: '🍊',  word: 'Quả cam' },
-  { letter: 'R',  emoji: '🐍',  word: 'Rắn' },
-  { letter: 'S',  emoji: '⭐',  word: 'Sao' },
-  { letter: 'T',  emoji: '🍎',  word: 'Táo' },
-  { letter: 'U',  emoji: '🥤',  word: 'Uống nước' },
-  { letter: 'Ư',  emoji: '💦',  word: 'Ướt' },
-  { letter: 'V',  emoji: '🦆',  word: 'Vịt' },
-  { letter: 'X',  emoji: '🥭',  word: 'Xoài' },
-  { letter: 'Y',  emoji: '❤️',  word: 'Yêu thương' },
+  { letter: 'A',  assetKey: 'a_wool',  word: 'Áo' },
+  { letter: 'Ă',  assetKey: 'a_corn',  word: 'Ăn cơm' },
+  { letter: 'Â',  assetKey: 'a_corn',  word: 'Âm nhạc' },
+  { letter: 'B',  assetKey: 'a_corn',  word: 'Bướm' },
+  { letter: 'C',  assetKey: 'a_duck',  word: 'Cá' },
+  { letter: 'D',  assetKey: 'a_strawberry',  word: 'Dưa hấu' },
+  { letter: 'Đ',  assetKey: 'a_egg',  word: 'Đèn' },
+  { letter: 'E',  assetKey: 'a_chicken',  word: 'Em bé' },
+  { letter: 'Ê',  assetKey: 'a_duck',  word: 'Ếch' },
+  { letter: 'G',  assetKey: 'a_chicken', word: 'Gà' },
+  { letter: 'H',  assetKey: 'a_strawberry',  word: 'Hoa' },
+  { letter: 'I',  assetKey: 'a_egg',  word: 'Im lặng' },
+  { letter: 'K',  assetKey: 'a_strawberry',  word: 'Kẹo' },
+  { letter: 'L',  assetKey: 'a_corn',  word: 'Lá' },
+  { letter: 'M',  assetKey: 'a_sheep',  word: 'Mèo' },
+  { letter: 'N',  assetKey: 'a_horse',  word: 'Nai' },
+  { letter: 'O',  assetKey: 'a_corn',  word: 'Ong' },
+  { letter: 'Ô',  assetKey: 'a_horse',  word: 'Ô tô' },
+  { letter: 'Ơ',  assetKey: 'a_tomato', word: 'Ớt' },
+  { letter: 'P',  assetKey: 'a_egg',  word: 'Pin' },
+  { letter: 'Q',  assetKey: 'a_carrot',  word: 'Quả cam' },
+  { letter: 'R',  assetKey: 'a_corn',  word: 'Rắn' },
+  { letter: 'S',  assetKey: 'a_egg',  word: 'Sao' },
+  { letter: 'T',  assetKey: 'a_strawberry',  word: 'Táo' },
+  { letter: 'U',  assetKey: 'a_milk',  word: 'Uống nước' },
+  { letter: 'Ư',  assetKey: 'a_milk',  word: 'Ướt' },
+  { letter: 'V',  assetKey: 'a_duck', word: 'Vịt' },
+  { letter: 'X',  assetKey: 'a_carrot',  word: 'Xoài' },
+  { letter: 'Y',  assetKey: 'a_strawberry',  word: 'Yêu thương' },
 ];
 
 // ── Theme/level colours ──
@@ -249,11 +269,11 @@ export const THEME_GRADIENTS = {
 };
 
 export const LEVEL_CONFIG = {
-  easy:   { color: '#059669', bg: '#D1FAE5', label: '⭐',         desc: 'Khởi động nhẹ nhàng' },
-  medium: { color: '#EA580C', bg: '#FFEDD5', label: '⭐⭐',       desc: 'Tăng số lượng và nhịp độ' },
-  hard:   { color: '#E11D48', bg: '#FFE4E9', label: '⭐⭐⭐',     desc: 'Nhiều thẻ và ít sai sót' },
-  expert: { color: '#9333EA', bg: '#F3E8FF', label: '⭐⭐⭐⭐',   desc: 'Mật độ cao, phản xạ nhanh' },
-  master: { color: '#2563EB', bg: '#DBEAFE', label: '⭐⭐⭐⭐⭐', desc: 'Thử thách tối đa' },
+  easy:   { color: '#059669', bg: '#D1FAE5', starCount: 1, desc: 'Khởi động nhẹ nhàng' },
+  medium: { color: '#EA580C', bg: '#FFEDD5', starCount: 2, desc: 'Tăng số lượng và nhịp độ' },
+  hard:   { color: '#E11D48', bg: '#FFE4E9', starCount: 3, desc: 'Nhiều thẻ và ít sai sót' },
+  expert: { color: '#9333EA', bg: '#F3E8FF', starCount: 4, desc: 'Mật độ cao, phản xạ nhanh' },
+  master: { color: '#2563EB', bg: '#DBEAFE', starCount: 5, desc: 'Thử thách tối đa' },
 };
 
 export const MEMORY_LEVELS = [

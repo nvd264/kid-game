@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FARM, SHADOWS } from '../theme';
 import sharedStyles from '../shared/styles';
 import { AnimatedPressable, Icon, RewardPopup } from '../shared/components';
-import { themes, THEME_ORDER, PUZZLE_LEVELS, getReleasedLevelConfigs, getTierLabel, HAND_POINTER_ASSET } from '../shared/constants';
+import { themes, THEME_ORDER, PUZZLE_LEVELS, getReleasedLevelConfigs, getTierLabel, HAND_POINTER_ASSET, ANIMAL_ASSETS, VEHICLE_ASSETS } from '../shared/constants';
 
 const DiffCell = ({ emoji, index, isClickable, isFound, isWrong, onTap, cellSize }) => {
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -224,7 +224,11 @@ const PuzzleGame = ({ playSound, onExit, fontsLoaded }) => {
                 onPress={() => { playSound('themeSelect'); startGame(key, 0); }}>
                 <LinearGradient colors={puzzleThemeGradients[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={sharedStyles.farmThemeCard}>
                   <View style={sharedStyles.farmThemeEmojiWrap}>
-                    <Text style={sharedStyles.kidThemeEmoji}>{theme.emoji}</Text>
+                    <Image
+                      source={ANIMAL_ASSETS[theme.assetKey] || VEHICLE_ASSETS[theme.assetKey]}
+                      style={{ width: 56, height: 56 }}
+                      resizeMode="contain"
+                    />
                   </View>
                   <View style={sharedStyles.kidThemeTextWrap}>
                     <Text style={[sharedStyles.farmThemeName, { fontFamily: F }]}>{theme.name}</Text>

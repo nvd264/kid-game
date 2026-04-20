@@ -8,7 +8,7 @@ import { AnimatedPressable, Icon, RewardPopup } from '../shared/components';
 import {
   themes, THEME_ORDER, MEMORY_LEVELS,
   getReleasedLevelConfigs, HAND_POINTER_ASSET,
-  SCREEN_WIDTH, SCREEN_HEIGHT,
+  SCREEN_WIDTH, SCREEN_HEIGHT, ANIMAL_ASSETS, VEHICLE_ASSETS,
 } from '../shared/constants';
 
 // ── Memory card with flip animation ──
@@ -90,9 +90,7 @@ const MemoryCard = ({ card, isFlipped, isMatched, cardSize, onPress, disabled, i
         {face === 'front'
           ? <Icon value={card.value} size={cardSize * 0.65} />
           : (
-            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: cardSize * 0.52 }}>🐾</Text>
-            </View>
+            <Icon value={FARM.cardBackIcon} size={cardSize * 0.52} />
           )
         }
         {isHinted && face === 'back' && (
@@ -269,7 +267,7 @@ const MemoryGame = ({ playSound, onExit, fontsLoaded }) => {
               <Ionicons name="close" size={22} color="#FFFFFF" />
             </View>
           </AnimatedPressable>
-          <Text style={sharedStyles.farmHeaderTitle}>🃏 Chủ đề</Text>
+          <Text style={sharedStyles.farmHeaderTitle}>🎮 Chủ đề</Text>
           <View style={{ width: 44 }} />
         </View>
 
@@ -289,7 +287,11 @@ const MemoryGame = ({ playSound, onExit, fontsLoaded }) => {
               <AnimatedPressable key={key} onPress={() => { playSound('themeSelect'); startGame(key, 0); }}>
                 <LinearGradient colors={memoryThemeGradients[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={sharedStyles.farmThemeCard}>
                   <View style={sharedStyles.farmThemeEmojiWrap}>
-                    <Text style={sharedStyles.kidThemeEmoji}>{theme.emoji}</Text>
+                    <Image
+                      source={ANIMAL_ASSETS[theme.assetKey] || VEHICLE_ASSETS[theme.assetKey]}
+                      style={{ width: 56, height: 56 }}
+                      resizeMode="contain"
+                    />
                   </View>
                   <View style={sharedStyles.kidThemeTextWrap}>
                     <Text style={sharedStyles.farmThemeName}>{theme.name}</Text>

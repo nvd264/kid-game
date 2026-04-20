@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { FARM } from '../theme';
 import sharedStyles from '../shared/styles';
 import { AnimatedPressable, Icon, RewardPopup } from '../shared/components';
-import { ANIMAL_SOUNDS, SCREEN_WIDTH } from '../shared/constants';
+import { ANIMAL_SOUNDS, SCREEN_WIDTH, ANIMAL_ASSETS } from '../shared/constants';
 
 const AnimalCard = ({ animal, isWrong, isCorrect, onPress, disabled }) => {
   const cardColors = isCorrect
@@ -18,7 +18,7 @@ const AnimalCard = ({ animal, isWrong, isCorrect, onPress, disabled }) => {
     <AnimatedPressable onPress={onPress} disabled={disabled}>
       <LinearGradient colors={cardColors} style={styles.animalOptionCard}>
         <View style={styles.animalEmojiHeroWrap}>
-          <Icon value={animal.emoji} size={74} />
+          <Icon value={animal.assetKey} size={74} />
         </View>
         <Text style={[styles.animalOptionName, (isWrong || isCorrect) && { color: '#FFF' }]}>{animal.name}</Text>
       </LinearGradient>
@@ -144,9 +144,9 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit, 
 
   if (screen === 'level') {
     const LEVEL_UI = {
-      easy:   { emoji: '🌟', badge: '2 lựa chọn', rounds: '4 câu', meter: 1 },
-      medium: { emoji: '🎧', badge: '3 lựa chọn', rounds: '5 câu', meter: 2 },
-      hard:   { emoji: '🚀', badge: '4 lựa chọn', rounds: '6 câu', meter: 3 },
+      easy:   { assetKey: 'a_egg', badge: '2 lựa chọn', rounds: '4 câu', meter: 1 },
+      medium: { assetKey: 'a_corn', badge: '3 lựa chọn', rounds: '5 câu', meter: 2 },
+      hard:   { assetKey: 'a_corn', badge: '4 lựa chọn', rounds: '6 câu', meter: 3 },
     };
     const LEVEL_GRADIENTS = {
       easy:   ['#22D3EE', '#3B82F6'],
@@ -161,13 +161,13 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit, 
           <AnimatedPressable style={sharedStyles.backButton} onPress={() => { playSound('tap'); onExit(); }}>
             <Ionicons name="chevron-back" size={24} color="#6A66A8" />
           </AnimatedPressable>
-          <Text style={sharedStyles.headerTitle}>🐾 Nghe tiếng thú</Text>
+          <Text style={sharedStyles.headerTitle}>🎵 Nghe tiếng thú</Text>
           <View style={{ width: 70 }} />
         </View>
 
         <View style={sharedStyles.kidSelectIntroCard}>
-          <Text style={sharedStyles.kidSelectIntroTitle}>🔊 Chọn con đúng</Text>
-          <Text style={sharedStyles.kidSelectIntroSub}>👂➡️🐾</Text>
+          <Text style={sharedStyles.kidSelectIntroTitle}>🎵 Chọn con đúng</Text>
+          <Text style={sharedStyles.kidSelectIntroSub}>👂➡️🎵</Text>
         </View>
 
         <ScrollView style={{ width: '100%' }} contentContainerStyle={sharedStyles.kidSelectScrollContent} showsVerticalScrollIndicator={false}>
@@ -177,7 +177,7 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit, 
               <AnimatedPressable key={key} onPress={() => { playSound('levelSelect'); startGame(key); }}>
                 <LinearGradient colors={LEVEL_GRADIENTS[key]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={sharedStyles.kidLevelCard}>
                   <View style={sharedStyles.kidLevelTopRow}>
-                    <Text style={sharedStyles.kidLevelEmoji}>{lv.emoji}</Text>
+                    <Image source={ANIMAL_ASSETS[lv.assetKey]} style={{ width: 40, height: 40 }} resizeMode="contain" />
                     <View style={{ flex: 1 }}>
                       <Text style={sharedStyles.kidLevelName}>{level.name}</Text>
                     </View>
@@ -227,7 +227,7 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit, 
 
           <AnimatedPressable onPress={playRoundSound} disabled={isPlayingAnimalSound || isCorrectCelebrating}>
             <LinearGradient colors={['#FFFFFF', '#D8F1FF']} style={styles.soundPlayButton}>
-              <Text style={styles.soundPlayButtonIcon}>{(isPlayingAnimalSound || isRoundPreparing) ? '🔊' : '🔈'}</Text>
+              <Image source={ANIMAL_ASSETS[(isPlayingAnimalSound || isRoundPreparing) ? 'a_corn' : 'a_egg']} style={{ width: 48, height: 48 }} resizeMode="contain" />
             </LinearGradient>
           </AnimatedPressable>
 
@@ -245,7 +245,7 @@ const AnimalSoundGame = ({ playSound, playAnimalSound, stopAnimalSound, onExit, 
           </View>
           {isCorrectCelebrating && (
             <View style={styles.correctToast}>
-              <Text style={styles.correctToastIcon}>🎉</Text>
+              <Image source={ANIMAL_ASSETS.a_strawberry} style={{ width: 32, height: 32 }} resizeMode="contain" />
               <Text style={styles.correctToastText}>Chúc mừng bé chọn đúng!</Text>
             </View>
           )}

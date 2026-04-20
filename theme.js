@@ -49,7 +49,7 @@ export const FARM = {
   contentGapAboveGrass: 10,
 
   // ── Card back symbol ──
-  cardBackIcon: '🐾',
+  cardBackIcon: 'a_horse',
 
   // ── Misc ──
   white: '#FFFFFF',
