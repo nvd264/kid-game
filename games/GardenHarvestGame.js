@@ -525,7 +525,11 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     }
 
     setPlots(prev => prev.map(p => p.id === plot.id ? { ...p, state: 'empty', crop: null } : p));
-    setTotalHarvested(prev => prev + 1);
+    
+    // Golden crop logic: +2 score
+    const pointsToAdd = plot.crop?.isGolden ? 2 : 1;
+    setTotalHarvested(prev => prev + pointsToAdd);
+    
     if (!paintOnlyDrag) playSound('match');
     if (!paintOnlyDrag) {
       Animated.sequence([
@@ -726,10 +730,29 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
     const isGolden = plot.crop?.isGolden;
     const goldenGlow = isGolden ? [{ shadowColor: '#FFD700', shadowOpacity: 0.6, shadowRadius: 15, elevation: 10 }] : [];
 
+    // Golden crop pulse animation
+    const goldenPulseAnim = useRef(new Animated.Value(1)).current;
+    const [pulseRef, setPulseRef] = React.useState(null);
+    
+    React.useEffect(() => {
+      if (!isGolden || !anim) return;
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(goldenPulseAnim, { toValue: 1.12, duration: 600, useNativeDriver: true }),
+          Animated.timing(goldenPulseAnim, { toValue: 1.0, duration: 600, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      setPulseRef(loop);
+      return () => loop.stop();
+    }, [isGolden, anim]);
+
+    const pulseTransform = isGolden ? [{ scale: goldenPulseAnim }] : [];
+
     return (
       <Animated.View
         key={plot.id}
-        style={[styles.gardenPlotWrap, isLocked && styles.gardenPlotWrapLocked, { transform: scaleTransform, width: plotSize, height: plotSize }, ...goldenGlow]}
+        style={[styles.gardenPlotWrap, isLocked && styles.gardenPlotWrapLocked, { transform: [...scaleTransform, ...pulseTransform], width: plotSize, height: plotSize }, ...goldenGlow]}
       >
         <View
           style={[
@@ -766,6 +789,10 @@ const GardenHarvestGame = ({ playSound, onExit, fontsLoaded, toggleMusic, musicE
               ) : null}
             </>
           )}
+          {/* Golden border for ripe golden crops */}
+          {isLocked ? null : plot.state === 'ripe' && isGolden ? (
+            <View style={[StyleSheet.absoluteFillObject, { borderWidth: 3, borderColor: '#FBBF24', borderRadius: 12 }]} pointerEvents="none" />
+          ) : null}
         </View>
         {unlockGlow != null && (
           <Animated.View
